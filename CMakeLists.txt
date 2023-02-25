@@ -3,4 +3,4 @@ project(AsciiCam)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(AsciiCam main.cpp)
+add_executable(AsciiCam code/main.cpp code/ascii_converter.cpp)
