@@ -1,5 +1,11 @@
-#include "iostream"
+#include "printer.h"
+
 
 int main() {
-    std::cout << "Hello world!\n";
+    initscr();
+    Terminal terminal;
+    Setup(&terminal);
+    PrintMenu(terminal);
+    endwin();
+    return 0;
 }
