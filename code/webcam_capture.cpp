@@ -1,9 +1,9 @@
-#include <opencv4/opencv2/core.hpp>
-#include <opencv4/opencv2/videoio.hpp>
-#include <opencv4/opencv2/highgui.hpp>
-#include <iostream>
+#include <opencv2/imgproc.hpp>
+#include "webcam_capture.h"
+#include "thread"
+#include "chrono"
 
-int main() {
+cv::Mat GetFrame() {
     cv::Mat frame;
     //--- INITIALIZE VIDEOCAPTURE
     cv::VideoCapture cam;
@@ -17,24 +17,25 @@ int main() {
     // check if we succeeded
     if (!cam.isOpened()) {
         std::cerr << "ERROR! Unable to open camera\n";
-        return -1;
+        exit(-1);
     }
     //--- GRAB AND WRITE LOOP
-    std::cout << "Start grabbing" << std::endl
-         << "Press any key to terminate" << std::endl;
-    for (;;) {
-        // wait for a new frame from camera and store it into 'frame'
-        cam.read(frame);
-        // check if we succeeded
-        if (frame.empty()) {
-            std::cerr << "ERROR! blank frame grabbed\n";
-            break;
-        }
-        // show live and wait for a key with timeout long enough to show images
-        cv::imshow("Live", frame);
-        if (cv::waitKey(5) >= 0)
-            break;
+    //std::cout << "Start grabbing" << std::endl << "Press any key to terminate" << std::endl;
+    // wait for a new frame from camera and store it into 'frame'
+    cam.read(frame);
+    // check if we succeeded
+    if (frame.empty()) {
+        std::cerr << "ERROR! blank frame grabbed\n";
+        exit(-1);
     }
+    //std::cout << "got frame size: " << frame.rows << "x" << frame.cols << std::endl;
+    cv::cvtColor(frame, frame, cv::COLOR_RGB2GRAY);
+    //cv::resize(frame, frame,cv::Size(),0.1, 0.1,cv::INTER_AREA);
+    // show live and wait for a key with timeout long enough to show images
+    //std::cout << "got frame size: " << frame.rows << "x" << frame.cols << std::endl;
+
+    //cv::imshow("Live", frame);
+
     // the camera will be deinitialized automatically in VideoCapture destructor
-    return 0;
+    return frame;
 }

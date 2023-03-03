@@ -1,4 +1,8 @@
 #include "printer.h"
+#include "webcam_capture.h"
+#include <opencv4/opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include "ascii_converter.h"
 
 std::string smth = "┌ ─ ┐ └ ┘ │";
 
@@ -78,7 +82,20 @@ void PrintMenu(Terminal &terminal) {
 }
 
 void CamVideo() {
-
+    while (true) {
+        if (cv::waitKey(10) >= 0) {
+            break;
+        }
+        cv::Mat frame = GetFrame();
+        cv::resize(frame, frame,cv::Size(),2, 2,cv::INTER_AREA);
+        std::vector<std::vector<u_char>> ascii_matrix = ConvertFrameToASCII(frame);
+        for (size_t i = 0; i < ascii_matrix.size(); ++i) {
+            for (size_t j = 0; j < ascii_matrix[0].size(); ++j) {
+                mvprintw(i, j, "%c", ascii_matrix[i][j]);
+            }
+        }
+        refresh();
+    }
 }
 
 void PrintParams(Terminal &terminal) {
