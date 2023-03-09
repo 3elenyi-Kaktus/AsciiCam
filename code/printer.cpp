@@ -1,13 +1,10 @@
 #include "printer.h"
-#include "webcam_capture.h"
-#include <opencv4/opencv2/core.hpp>
-#include <opencv2/imgproc.hpp>
-#include "ascii_converter.h"
 
-std::string smth = "┌ ─ ┐ └ ┘ │";
+
+// std::string smth = "┌ ─ ┐ └ ┘ │"; for possible window fraction
 
 MainMenu::MainMenu() {
-    header = "Some terminal heading";
+    header = "Hello world, user and ACOS enjoyer!";
     window = {
             "###################",
             "#                 #",
@@ -23,81 +20,69 @@ MainMenu::MainMenu() {
     num_of_options = 4;
 }
 
-void Setup(Terminal *terminal) {
-    getmaxyx(stdscr, terminal->ROWS, terminal->COLS);
-    mvwprintw(stdscr, 7, (terminal->COLS - 30) / 2, "%s", "Hello world, user and ACOS enjoyer!\n");
-    refresh();
+Terminal InitTerminalWindow() {
+    initscr();
+    Terminal terminal{};
+    getmaxyx(stdscr, terminal.height, terminal.width);
+    return terminal;
 }
 
-void PrintMenu(Terminal &terminal) {
-    MainMenu menu = terminal.menu;
+void TerminateTerminalWindow() {
+    endwin();
+}
 
-    keypad(stdscr, true);
-    curs_set(0); //"Убиваем" курсор
-    mvprintw((terminal.ROWS - menu.height) / 2 - 1, (terminal.COLS - menu.header.length()) / 2, "%s",
-             menu.header.c_str());
+int PrintMenu(Terminal &terminal, MainMenu &menu) {
+    clear();
+    keypad(stdscr, true); // Enable system keys
+    curs_set(0); // Hide cursor
+    int pos_x = (terminal.width - menu.width) / 2;
+    int pos_y = (terminal.height - menu.height - 10) / 2; // 5 for header offset from menu block
+    mvwprintw(stdscr, pos_y, pos_x - (menu.header.length() - menu.width) / 2, "%s", menu.header.c_str());
     for (int i = 0; i < menu.height; ++i) {
-        mvprintw((terminal.ROWS - menu.height) / 2 + i, (terminal.COLS - menu.width) / 2, "%s", menu.window[i].c_str());
+        mvprintw(pos_y + i + 5, pos_x, "%s", menu.window[i].c_str()); // 5 for header offset from menu block
     }
-    //mvprintw(terminal.ROWS - 1, 0, "The number of rows - %d and columns - %d\n", terminal.ROWS, terminal.COLS);
-    int chosen_option = 1;
-    mvaddch((terminal.ROWS - menu.height) / 2 + 2, (terminal.COLS - menu.width) / 2 + 3, '>');
+    mvaddch(pos_y + 2 + 5, pos_x + 3, '>');
     refresh();
 
+
+    int chosen_option = 1;
     while (true) {
         int a = getch();
-        //mvprintw(0, 0, "choice: %d   ", a);
         switch (a) {
             case KEY_UP:
-                if (chosen_option > 1) // move up, if possible
+                if (chosen_option > 1) { // move up, if possible
                     --chosen_option;
-                break;
-            case KEY_DOWN:
-                if (chosen_option < menu.num_of_options) // move down, if possible
-                    ++chosen_option;
-                break;
-            case 012: // enter pressed
-                if (chosen_option == 1) {
-                    CamVideo();
-                } else if (chosen_option == 2) {
-
-                } else if (chosen_option == 3) {
-                    PrintParams(terminal);
-                } else if (chosen_option == 4) {
-                    endwin();
-                    exit(0);
+                    mvaddch(pos_y + (chosen_option + 2) + 5, pos_x + 3, ' '); // clear old cursor
+                    mvaddch(pos_y + (chosen_option + 1) + 5, pos_x + 3, '>'); // 5 for header offset from menu block
                 }
                 break;
-            default:
+            case KEY_DOWN:
+                if (chosen_option < menu.num_of_options) { // move down, if possible
+                    ++chosen_option;
+                    mvaddch(pos_y + chosen_option + 5, pos_x + 3, ' '); // clear old cursor
+                    mvaddch(pos_y + (chosen_option + 1) + 5, pos_x + 3, '>'); // 5 for header offset from menu block
+                }
+                break;
+            case 012: // enter pressed
+                return chosen_option;
+            default: // unknown
                 break;
         }
-        for (int i = 0; i < menu.height; i++) {
-            mvprintw((terminal.ROWS - menu.height) / 2 + i, (terminal.COLS - menu.width) / 2, "%s",
-                     menu.window[i].c_str());
-            if (i - 1 == chosen_option) {
-                mvaddch((terminal.ROWS - menu.height) / 2 + i, (terminal.COLS - menu.width) / 2 + 3, '>');
-            }
-        }
     }
 }
 
-void CamVideo() {
-    while (true) {
-        if (cv::waitKey(10) >= 0) {
-            break;
+void PrintFrame(Terminal& terminal, std::vector<std::vector<u_char>>& matrix) {
+    int pos_x = (terminal.width - matrix[0].size()) / 2;
+    int pos_y = (terminal.height - matrix.size()) / 2;
+    for (size_t i = 0; i < matrix.size(); ++i) {
+        for (size_t j = 0; j < matrix[0].size(); ++j) {
+            mvprintw(pos_y + i, pos_x + j, "%c", matrix[i][j]);
         }
-        cv::Mat frame = GetFrame();
-        cv::resize(frame, frame,cv::Size(),2, 2,cv::INTER_AREA);
-        std::vector<std::vector<u_char>> ascii_matrix = ConvertFrameToASCII(frame);
-        for (size_t i = 0; i < ascii_matrix.size(); ++i) {
-            for (size_t j = 0; j < ascii_matrix[0].size(); ++j) {
-                mvprintw(i, j, "%c", ascii_matrix[i][j]);
-            }
-        }
-        refresh();
     }
+    refresh();
 }
 
-void PrintParams(Terminal &terminal) {
-
+void ClearScreen() {
+    clear();
+    refresh();
 }

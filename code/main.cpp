@@ -1,11 +1,6 @@
-#include "printer.h"
-
+#include "executor.h"
 
 int main() {
-    initscr();
-    Terminal terminal;
-    Setup(&terminal);
-    PrintMenu(terminal);
-    endwin();
+    Execute();
     return 0;
 }

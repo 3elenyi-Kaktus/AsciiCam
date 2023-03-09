@@ -1,14 +1,14 @@
 #pragma once
-#include "iostream"
-#include "chrono"
-#include "thread"
-#include "ncurses.h"
+
 #include "vector"
+#include "string"
+#include "ncurses.h"
 
 
 class MainMenu {
 public:
     MainMenu();
+
     int height;
     int width;
     std::string header;
@@ -16,16 +16,25 @@ public:
     int num_of_options;
 };
 
-class Terminal {
+class GUI {
 public:
-    int ROWS = 0;
-    int COLS = 0;
     MainMenu menu;
 };
 
 
+class Terminal {
+public:
+    int height;
+    int width;
+};
 
-void Setup(Terminal* terminal);
-void PrintMenu(Terminal &terminal);
-void PrintParams(Terminal& terminal);
-void CamVideo();
+
+Terminal InitTerminalWindow();
+
+void TerminateTerminalWindow();
+
+int PrintMenu(Terminal &terminal, MainMenu &menu);
+
+void PrintFrame(Terminal& terminal, std::vector<std::vector<u_char>>& matrix);
+
+void ClearScreen();
