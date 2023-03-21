@@ -4,11 +4,8 @@
 #include "string"
 #include "ncurses.h"
 
-
-class MainMenu {
+class Menu {
 public:
-    MainMenu();
-
     int height;
     int width;
     std::string header;
@@ -16,9 +13,20 @@ public:
     int num_of_options;
 };
 
+class MainMenu : public Menu {
+public:
+    MainMenu();
+};
+
+class ClientServerChoice : public Menu {
+public:
+    ClientServerChoice();
+};
+
 class GUI {
 public:
     MainMenu menu;
+    ClientServerChoice CS_choice;
 };
 
 
@@ -33,8 +41,8 @@ Terminal InitTerminalWindow();
 
 void TerminateTerminalWindow();
 
-int PrintMenu(Terminal &terminal, MainMenu &menu);
+int PrintMenu(Terminal &terminal, Menu &menu);
 
-void PrintFrame(Terminal& terminal, std::vector<std::vector<u_char>>& matrix);
+void PrintFrame(Terminal &terminal, std::vector<std::vector<u_char>> &matrix);
 
 void ClearScreen();

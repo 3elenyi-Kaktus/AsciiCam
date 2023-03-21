@@ -6,22 +6,40 @@
 MainMenu::MainMenu() {
     header = "Hello world, user and ACOS enjoyer!";
     window = {
-            "###################",
-            "#                 #",
-            "#    enter cam    #",
-            "#    some dest    #",
-            "#    and params   #",
-            "#      exit       #",
-            "#                 #",
-            "###################"
+            "########################",
+            "#                      #",
+            "#    Enter Asciicam    #",
+            "#      some destt      #",
+            "#      Parameters      #",
+            "#         Exit         #",
+            "#                      #",
+            "########################"
     };
     height = window.size();
     width = window[0].size();
     num_of_options = 4;
 }
 
+ClientServerChoice::ClientServerChoice() {
+    header = "Do you want to create a new videochat or join existing one?";
+    window = {
+            "########################",
+            "#                      #",
+            "#      Create new      #",
+            "#     Join existing    #",
+            "#                      #",
+            "########################"
+    };
+    height = window.size();
+    width = window[0].size();
+    num_of_options = 2;
+}
+
 Terminal InitTerminalWindow() {
     initscr();
+    keypad(stdscr, true); // Enable system keys
+    curs_set(0); // Hide cursor
+    noecho(); // Disable visible input
     Terminal terminal{};
     getmaxyx(stdscr, terminal.height, terminal.width);
     return terminal;
@@ -31,10 +49,8 @@ void TerminateTerminalWindow() {
     endwin();
 }
 
-int PrintMenu(Terminal &terminal, MainMenu &menu) {
+int PrintMenu(Terminal &terminal, Menu &menu) {
     clear();
-    keypad(stdscr, true); // Enable system keys
-    curs_set(0); // Hide cursor
     int pos_x = (terminal.width - menu.width) / 2;
     int pos_y = (terminal.height - menu.height - 10) / 2; // 5 for header offset from menu block
     mvwprintw(stdscr, pos_y, pos_x - (menu.header.length() - menu.width) / 2, "%s", menu.header.c_str());
@@ -71,7 +87,7 @@ int PrintMenu(Terminal &terminal, MainMenu &menu) {
     }
 }
 
-void PrintFrame(Terminal& terminal, std::vector<std::vector<u_char>>& matrix) {
+void PrintFrame(Terminal &terminal, std::vector<std::vector<u_char>> &matrix) {
     int pos_x = (terminal.width - matrix[0].size()) / 2;
     int pos_y = (terminal.height - matrix.size()) / 2;
     for (size_t i = 0; i < matrix.size(); ++i) {
