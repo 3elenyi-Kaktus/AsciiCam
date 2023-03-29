@@ -1,13 +1,11 @@
 #include "executor.h"
-#include "webcam_capture.h"
-#include "ascii_converter.h"
-#include "logger.h"
 
-Logger logger;
 
 void Execute() {
+    Logger logger;
     Terminal terminal = InitTerminalWindow();
     GUI interface;
+    WebCamera camera(logger);
     while (true) {
         //mvprintw(terminal.ROWS - 1, 0, "The number of rows - %d and columns - %d\n", terminal.ROWS, terminal.COLS);
         int option = PrintMenu(terminal, interface.menu);
@@ -23,7 +21,7 @@ void Execute() {
             }
         } else if (option == 2) {   // unused
         } else if (option == 3) {   // unused, for parameters
-            CamVideo(terminal); // Some dummy self-printing camera script
+            CamVideo(terminal, camera, logger); // Some dummy self-printing camera script
         } else if (option == 4) {
             TerminateTerminalWindow();
             break;
@@ -31,7 +29,7 @@ void Execute() {
     }
 }
 
-void CamVideo(Terminal &terminal) {
+void CamVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
     while (true) {
         auto start1 = std::chrono::high_resolution_clock::now();
         timeout(1); // wait for keypress
@@ -39,22 +37,17 @@ void CamVideo(Terminal &terminal) {
             break;
         }
         auto start = std::chrono::high_resolution_clock::now();
-        cv::Mat frame = GetFrame();
+        camera.GetNewFrame(logger);
         auto end = std::chrono::high_resolution_clock::now();
         logger << "Frame was taken in " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
                << "ms\n";
         start = std::chrono::high_resolution_clock::now();
-        cv::cvtColor(frame, frame, cv::COLOR_RGB2GRAY);
+        camera.PreprocessFrame(43, 132);
         end = std::chrono::high_resolution_clock::now();
-        logger << "Frame was grayscaled in "
+        logger << "Frame was remapped in "
                << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
         start = std::chrono::high_resolution_clock::now();
-        cv::resize(frame, frame, cv::Size(), 2, 2, cv::INTER_AREA);
-        end = std::chrono::high_resolution_clock::now();
-        logger << "Frame was resized in " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-               << "ms\n";
-        start = std::chrono::high_resolution_clock::now();
-        std::vector<std::vector<u_char>> ascii_matrix = ConvertFrameToASCII(frame);
+        std::vector<std::vector<u_char>> ascii_matrix = ConvertFrameToASCII(camera.GetFrame());
         end = std::chrono::high_resolution_clock::now();
         logger << "Frame was converted in "
                << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";

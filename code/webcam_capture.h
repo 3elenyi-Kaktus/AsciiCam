@@ -1,23 +1,27 @@
 #pragma once
+
 #include <opencv4/opencv2/core.hpp>
 #include <opencv4/opencv2/videoio.hpp>
 #include <opencv4/opencv2/highgui.hpp>
-#include "opencv4/opencv2/imgproc.hpp"
+#include <opencv4/opencv2/imgproc.hpp>
 #include <iostream>
 #include "logger.h"
+#include <cmath>
 
-const int ASCII_SYMBOL_HEIGHT = 15;
-const int ASCII_SYMBOL_WIDTH = 9;
+enum {
+    ASCII_SYMBOL_HEIGHT = 15,
+    ASCII_SYMBOL_WIDTH = 9
+};
 
-class Cam {
+class WebCamera {
 public:
-    explicit Cam(Logger &logger);
+    explicit WebCamera(Logger &logger);
 
-    cv::Mat GetFrame();
+    cv::Mat &GetFrame();
 
     void GetNewFrame(Logger &logger);
 
-    void PreProcessFrame(int height, int width);
+    void PreprocessFrame(int height, int width);
 
 private:
     cv::Mat frame;

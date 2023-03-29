@@ -1,10 +1,6 @@
-#include <opencv2/imgproc.hpp>
 #include "webcam_capture.h"
-#include "thread"
-#include "chrono"
-#include <cmath>
 
-Cam::Cam(Logger &logger) {
+WebCamera::WebCamera(Logger &logger) {
     int deviceID = 0;             // 0 = open default camera
     int apiID = cv::CAP_ANY;      // auto api
     cam.open(deviceID, apiID);
@@ -14,11 +10,11 @@ Cam::Cam(Logger &logger) {
     }
 }
 
-cv::Mat Cam::GetFrame() {
+cv::Mat &WebCamera::GetFrame() {
     return frame;
 }
 
-void Cam::GetNewFrame(Logger &logger) {
+void WebCamera::GetNewFrame(Logger &logger) {
     cam.read(frame);
     // check if we succeeded
     if (frame.empty()) {
@@ -26,12 +22,12 @@ void Cam::GetNewFrame(Logger &logger) {
     }
 }
 
-void Cam::PreProcessFrame(int height, int width) {
+void WebCamera::PreprocessFrame(int height, int width) {
     // convert size of the area we want to fit in from symbols to pixels
     height *= ASCII_SYMBOL_HEIGHT;
     width *= ASCII_SYMBOL_WIDTH;
     // calculate the height/width ratio of the frame
-    double hw_ratio =  frame.rows / static_cast<double>(frame.cols);
+    double hw_ratio = frame.rows / static_cast<double>(frame.cols);
 
     // first possible scaling
     int width_1 = width;
