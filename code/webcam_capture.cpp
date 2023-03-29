@@ -2,52 +2,65 @@
 #include "webcam_capture.h"
 #include "thread"
 #include "chrono"
+#include <cmath>
 
-class Cam {
-public:
-
-    Cam() {
-        cam.open(0, cv::CAP_ANY);
-    }
-    cv::Mat frame;
-    cv::VideoCapture cam;
-};
-
-Cam cam;
-
-cv::Mat GetFrame() {
-    //cv::Mat frame;
-    //--- INITIALIZE VIDEOCAPTURE
-    //cv::VideoCapture cam;
-    // open the default camera using default API
-    // cam.open(cv::CAP_V4L);
-    // OR advance usage: select any API backend
-    //int deviceID = 0;             // 0 = open default camera
-    //int apiID = cv::CAP_ANY;      // 0 = autodetect default API
-    // open selected camera using selected API
-    //cam.open(deviceID, apiID);
+Cam::Cam(Logger &logger) {
+    int deviceID = 0;             // 0 = open default camera
+    int apiID = cv::CAP_ANY;      // auto api
+    cam.open(deviceID, apiID);
     // check if we succeeded
-//    if (!cam.isOpened()) {
-//        std::cerr << "ERROR! Unable to open camera\n";
-//        exit(-1);
-//    }
-    //--- GRAB AND WRITE LOOP
-    //std::cout << "Start grabbing" << std::endl << "Press any key to terminate" << std::endl;
-    // wait for a new frame from camera and store it into 'frame'
-    cam.cam.read(cam.frame);
-    // check if we succeeded
-    if (cam.frame.empty()) {
-        std::cerr << "ERROR! blank frame grabbed\n";
-        exit(-1);
+    if (!cam.isOpened()) {
+        logger << "ERROR! Unable to open camera\n";
     }
-    //std::cout << "got frame size: " << frame.rows << "x" << frame.cols << std::endl;
-//    cv::cvtColor(frame, frame, cv::COLOR_RGB2GRAY);
-    //cv::resize(frame, frame,cv::Size(),0.1, 0.1,cv::INTER_AREA);
-    // show live and wait for a key with timeout long enough to show images
-    //std::cout << "got frame size: " << frame.rows << "x" << frame.cols << std::endl;
+}
 
-    //cv::imshow("Live", frame);
+cv::Mat Cam::GetFrame() {
+    return frame;
+}
 
-    // the camera will be deinitialized automatically in VideoCapture destructor
-    return cam.frame;
+void Cam::GetNewFrame(Logger &logger) {
+    cam.read(frame);
+    // check if we succeeded
+    if (frame.empty()) {
+        logger << "ERROR! blank frame grabbed\n";
+    }
+}
+
+void Cam::PreProcessFrame(int height, int width) {
+    // convert size of the area we want to fit in from symbols to pixels
+    height *= ASCII_SYMBOL_HEIGHT;
+    width *= ASCII_SYMBOL_WIDTH;
+    // calculate the height/width ratio of the frame
+    double hw_ratio =  frame.rows / static_cast<double>(frame.cols);
+
+    // first possible scaling
+    int width_1 = width;
+    int height_1 = static_cast<int>(std::lround(width_1 * hw_ratio));
+
+    // second possible scaling
+    int height_2 = height;
+    int width_2 = static_cast<int>(std::lround(height_2 / hw_ratio));
+
+    int new_height, new_width;
+
+    // choose the scaling which fits in the area
+    if (height_1 > height) {
+        new_height = height_2;
+        new_width = width_2;
+    } else if (width_2 > width) {
+        new_height = height_1;
+        new_width = width_1;
+    }
+    cv::Size new_size(new_width, new_height);
+    // first resize
+    cv::resize(frame, frame, new_size, cv::INTER_AREA);
+
+    // another scaling of the image for the correct mapping between pixels and symbols
+    int new_height_in_symb = new_height / ASCII_SYMBOL_HEIGHT;
+    int new_width_in_symb = new_width / ASCII_SYMBOL_WIDTH;
+    cv::Size new_size_symb(new_width_in_symb, new_height_in_symb);
+    cv::resize(frame, frame, new_size_symb, cv::INTER_AREA);
+
+    // convert image to grayscale
+    cv::cvtColor(frame, frame, cv::COLOR_RGB2GRAY);
 }
