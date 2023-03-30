@@ -1,16 +1,6 @@
-#include <iostream>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <netdb.h>
+#include "send_get_message.cpp"
 
-using namespace std;
-
-int client_connect(int& client, int port, const char* ip) {
+int client_connect(int& client, int port, const char* ip, char* buffer, int& bufsize) {
 
     client = socket(AF_INET, SOCK_STREAM, 0);
     if (client < 0) {
@@ -35,43 +25,26 @@ int client_connect(int& client, int port, const char* ip) {
         cout << "=> Connection to the server port number: " << port << endl;
     }
     cout << "=> Awaiting confirmation from the server..." << endl;
+    recv(client, buffer, bufsize, 0);
+    cout << "=> Connection confirmed.";
 }
 
 int main() {
     const char* ip = "127.0.0.1";
     int port = 8080;
     int client;
-
-    client_connect(client, port, ip);
-
     int bufsize = 30000;
     char buffer[bufsize];
-    recv(client, buffer, bufsize, 0);
-    cout << "=> Connection confirmed.";
+
+    client_connect(client, port, ip, buffer, bufsize);
 
     bool isExit = false;
-
     cout << "\n\n=> Enter # to end the connection.\n" << endl;
     do {
         cout << "Client: ";
-        do {
-            cin >> buffer;
-            send(client, buffer, bufsize, 0);
-            if (*buffer == '#') {
-                send(client, buffer, bufsize, 0);
-                *buffer = '*';
-                isExit = true;
-            }
-        } while (*buffer != 42);
+        send_message(client, buffer, bufsize, isExit);
         cout << "Server: ";
-        do {
-            recv(client, buffer, bufsize, 0);
-            cout << buffer << " ";
-            if (*buffer == '#') {
-                *buffer = '*';
-                isExit = true;
-            }
-        } while (*buffer != 42);
+        get_message(client, buffer, bufsize, isExit);
         cout << endl;
     } while (!isExit);
     cout << "\n=> Connection terminated.\n";

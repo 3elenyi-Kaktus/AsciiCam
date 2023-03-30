@@ -1,13 +1,4 @@
-#include <iostream>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <stdlib.h>
-#include <unistd.h>
-
-using namespace std;
+#include "send_get_message.cpp"
 
 int server_connect(int port, int& server, int& client, sockaddr_in& server_addr) {
     socklen_t size;
@@ -63,36 +54,12 @@ int main() {
         cout << "\n=> Enter # to end the connection\n" << endl;
 
         cout << "Client: ";
-        do {
-            recv(server, buffer, bufsize, 0);
-            cout << buffer << " ";
-            if (*buffer == '#') {
-                *buffer = '*';
-                isExit = true;
-            }
-        } while (*buffer != '*');
-
+        get_message(server, buffer, bufsize, isExit);
         do {
             cout << "\nServer: ";
-            do {
-                cin >> buffer;
-                send(server, buffer, bufsize, 0);
-                if (*buffer == '#') {
-                    send(server, buffer, bufsize, 0);
-                    *buffer = '*';
-                    isExit = true;
-                }
-            } while (*buffer != '*');
-
+            send_message(server, buffer, bufsize, isExit);
             cout << "Client: ";
-            do {
-                recv(server, buffer, bufsize, 0);
-                cout << buffer << " ";
-                if (*buffer == '#') {
-                    *buffer == '*';
-                    isExit = true;
-                }
-            } while (*buffer != '*');
+            get_message(server, buffer, bufsize, isExit);
         } while (!isExit);
 
         cout << "\n\n=> Connection terminated with IP " << inet_ntoa(server_addr.sin_addr);
