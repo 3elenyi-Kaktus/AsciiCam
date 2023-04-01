@@ -1,74 +1,53 @@
-#include "send_get_message.cpp"
+#include "server.h"
 
-int server_connect(int port, int& server, int& client, sockaddr_in& server_addr) {
-    socklen_t size;
 
-    client = socket(AF_INET, SOCK_STREAM, 0);
-
-    if (client < 0) {
-        cout << "\nError establishing socket..." << endl;
-        exit(1);
-    }
-
-    cout << "\n=> Socket server has been created." << endl;
-
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = htons(INADDR_ANY);
-    server_addr.sin_port = htons(port);
-
-    if ((bind(client, (struct sockaddr*)&server_addr,sizeof(server_addr))) < 0) {
-        cout << "=> Error binding connection, the socket has already been established." << endl;
-        return -1;
-    }
-
-    size = sizeof(server_addr);
-    cout << "=> Looking for clients..." << endl;
-
-    listen(client, 1);
-
-    server = accept(client,(struct sockaddr *)&server_addr,&size);
-
-    if (server < 0)
-        cout << "=> Error on accepting." << endl;
-
-    return 0;
+Host::Host(Logger &logger) {
+    Connect(logger);
 }
 
-int main() {
-    int client, server;
-    struct sockaddr_in server_addr;
-    int port = 8080;
+void Host::Connect(Logger &logger) {
+    int port_no = 8081;
+    struct sockaddr_in server_addr{}, client_addr{};
 
-    server_connect(port, server, client, server_addr);
-
-    bool isExit = false;
-    int bufsize = 30000;
-    char buffer[bufsize];
-    int clientCount = 1;
-
-    while (server > 0)
-    {
-        strcpy(buffer, "=> Server connected...\n");
-        send(server, buffer, bufsize, 0);
-        cout << "=> Connected with the client #" << clientCount << ", you are good to go..." << endl;
-        cout << "\n=> Enter # to end the connection\n" << endl;
-
-        cout << "Client: ";
-        get_message(server, buffer, bufsize, isExit);
-        do {
-            cout << "\nServer: ";
-            send_message(server, buffer, bufsize, isExit);
-            cout << "Client: ";
-            get_message(server, buffer, bufsize, isExit);
-        } while (!isExit);
-
-        cout << "\n\n=> Connection terminated with IP " << inet_ntoa(server_addr.sin_addr);
-        close(server);
-        cout << "\nGoodbye..." << endl;
-        isExit = false;
-        exit(1);
+    socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (socket_fd < 0) {
+        //logger << "ERROR opening socket\n";
+        return;
+    }
+    bzero((char*)&server_addr, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(port_no);
+    if (bind(socket_fd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
+        //logger << "ERROR on binding\n";
+        return;
     }
 
-    close(client);
-    return 0;
+    listen(socket_fd, 5);
+
+    socklen_t client_len = sizeof(client_addr);
+    client_fd = accept(socket_fd, (struct sockaddr *) &client_addr, &client_len);
+    if (client_fd < 0) {
+        //logger << "ERROR on accept\n";
+    }
+}
+
+void Host::GetMessage(Logger &logger) {
+    bzero(buffer, sizeof(buffer));
+    int n = recv(client_fd, buffer, sizeof(buffer), 0);
+    if (n < 0) {
+        //logger << "ERROR on receiving\n";
+    }
+}
+
+void Host::SendMessage(Logger &logger) {
+    int n = send(client_fd, buffer, sizeof(buffer), 0);
+    if (n < 0) {
+        //logger << "ERROR on sending\n";
+    }
+}
+
+void Host::TerminateConnection() {
+    close(client_fd);
+    close(socket_fd);
 }
