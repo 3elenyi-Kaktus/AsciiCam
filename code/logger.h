@@ -8,7 +8,8 @@ public:
 
     void ClearLog();
 
-    std::fstream &operator<<(const std::string &log);
+    template<class T>
+    std::fstream &operator<<(T log);
 
     ~Logger();
 

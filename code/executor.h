@@ -5,6 +5,8 @@
 #include "printer.h"
 #include "webcam_capture.h"
 #include "chrono"
+#include "server.h"
+#include "client.h"
 
 void Execute();
 

@@ -53,7 +53,7 @@ int PrintMenu(Terminal &terminal, Menu &menu) {
     clear();
     int pos_x = (terminal.width - menu.width) / 2;
     int pos_y = (terminal.height - menu.height - 10) / 2; // 5 for header offset from menu block
-    mvwprintw(stdscr, pos_y, pos_x - (menu.header.length() - menu.width) / 2, "%s", menu.header.c_str());
+    mvprintw(pos_y, pos_x - (menu.header.length() - menu.width) / 2, "%s", menu.header.c_str());
     for (int i = 0; i < menu.height; ++i) {
         mvprintw(pos_y + i + 5, pos_x, "%s", menu.window[i].c_str()); // 5 for header offset from menu block
     }
