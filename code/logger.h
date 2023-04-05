@@ -9,7 +9,10 @@ public:
     void ClearLog();
 
     template<class T>
-    std::fstream &operator<<(T log);
+    std::fstream &operator<<(T log) {
+        error_log << log;
+        return error_log;
+    }
 
     ~Logger();
 

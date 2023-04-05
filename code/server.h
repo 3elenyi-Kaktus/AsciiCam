@@ -10,13 +10,12 @@
 
 class Host {
 public:
-    Host(Logger &logger);
 
-    void Connect(Logger &logger);
+    int Connect(Logger &logger);
 
-    void GetMessage(Logger &logger);
+    int GetMessage(Logger &logger);
 
-    void SendMessage(Logger &logger);
+    int SendMessage(Logger &logger);
 
     void TerminateConnection();
 

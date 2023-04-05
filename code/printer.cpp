@@ -9,7 +9,7 @@ MainMenu::MainMenu() {
             "########################",
             "#                      #",
             "#    Enter Asciicam    #",
-            "#      some destt      #",
+            "#      some  chat      #",
             "#      Parameters      #",
             "#         Exit         #",
             "#                      #",
@@ -35,17 +35,15 @@ ClientServerChoice::ClientServerChoice() {
     num_of_options = 2;
 }
 
-Terminal InitTerminalWindow() {
+Terminal::Terminal() {
     initscr();
     keypad(stdscr, true); // Enable system keys
     curs_set(0); // Hide cursor
     noecho(); // Disable visible input
-    Terminal terminal{};
-    getmaxyx(stdscr, terminal.height, terminal.width);
-    return terminal;
+    getmaxyx(stdscr, height, width);
 }
 
-void TerminateTerminalWindow() {
+Terminal::~Terminal() {
     endwin();
 }
 

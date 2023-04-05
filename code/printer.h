@@ -32,14 +32,14 @@ public:
 
 class Terminal {
 public:
+    Terminal();
+
+    ~Terminal();
+
     int height;
     int width;
 };
 
-
-Terminal InitTerminalWindow();
-
-void TerminateTerminalWindow();
 
 int PrintMenu(Terminal &terminal, Menu &menu);
 

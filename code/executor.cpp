@@ -1,10 +1,11 @@
 #include "executor.h"
 
+#include "thread"
 
 void Execute() {
     Logger logger;
     logger << "Start of AsciiCam\n";
-    Terminal terminal = InitTerminalWindow();
+    Terminal terminal;
     GUI interface;
     WebCamera camera(logger);
     while (true) {
@@ -17,7 +18,10 @@ void Execute() {
             option = PrintMenu(terminal, interface.CS_choice);
             ClearScreen();
             if (option == 1) { // Create new server connection
-                Host host(logger);
+                Host host{};
+                if (host.Connect(logger)) {
+                    break;
+                }
                 logger << "Connected to client\n";
                 host.GetMessage(logger);
                 int width, height, new_height, new_width;
@@ -53,7 +57,10 @@ void Execute() {
                 }
                 host.TerminateConnection();
             } else {        // Create new client connection
-                Client client(logger);
+                Client client{};
+                if (client.Connect(logger)) {
+                    break;
+                }
                 logger << "Connected to host\n";
                 int height = terminal.height;
                 int width = terminal.width - 4;
@@ -84,11 +91,140 @@ void Execute() {
 
                 client.TerminateConnection();
             }
-        } else if (option == 2) {   // unused
+        } else if (option == 2) {
+            option = PrintMenu(terminal, interface.CS_choice);
+            ClearScreen();
+
+            unsigned int available_threads = std::thread::hardware_concurrency();
+            logger << available_threads << " concurrent threads are supported.\n";
+
+            echo();
+            curs_set(1);
+            char a[100];
+            int cur_height = 0;
+            int cur_width = 0;
+            std::string my_message = "You > ";
+            std::string ending_message = "The other person terminated chat.";
+
+            if (option == 1) { // Create new server connection
+                Host host{};
+                if (host.Connect(logger)) {
+                    break;
+                }
+                logger << "Connected to client\n";
+
+                std::string client_message = "Client > ";
+                std::atomic_bool chat_is_closed = false;
+
+                std::thread receiver([&]() {
+                    while (!chat_is_closed) {
+                        host.GetMessage(logger);
+
+                        for (int i = 0; i < 80; ++i) {
+                            a[i] = host.buffer[i];
+                        }
+                        logger << "Got msg from client: " << a << "\n";
+                        if (*a == 'q') {
+                            chat_is_closed = true;
+                            strcpy(a, ending_message.c_str());
+                        }
+
+                        int temp_height, temp_width;
+                        getyx(stdscr, temp_height, temp_width);
+                        mvprintw(cur_height, 0, "%s%s", client_message.c_str(), a);
+                        getyx(stdscr, cur_height, cur_width);
+                        move(temp_height, temp_width);
+                        refresh();
+                        ++cur_height;
+                    }
+                });
+
+                std::thread sender([&]() {
+                    while (!chat_is_closed) {
+                        move(terminal.height - 1, 1);
+                        getstr(a);
+                        logger << "You entered: " << a << "\n";
+                        mvprintw(cur_height, 0, "%s%s", my_message.c_str(), a);
+                        refresh();
+                        getyx(stdscr, cur_height, cur_width);
+                        ++cur_height;
+
+                        if (*a == 'q') {
+                            chat_is_closed = true;
+                        }
+
+                        for (int i = 0; i < 80; ++i) {
+                            host.buffer[i] = a[i];
+                        }
+                        host.SendMessage(logger);
+
+                    }
+                });
+                sender.join();
+                receiver.join();
+
+                host.TerminateConnection();
+            } else {        // Create new client connection
+                Client client{};
+                if (client.Connect(logger)) {
+                    break;
+                }
+
+                logger << "Connected to host\n";
+
+                std::string server_message = "Server > ";
+                std::atomic_bool chat_is_closed = false;
+
+                std::thread receiver([&]() {
+                    while (!chat_is_closed) {
+                        client.GetMessage(logger);
+
+                        for (int i = 0; i < 80; ++i) {
+                            a[i] = client.buffer[i];
+                        }
+                        logger << "Got msg from server: " << a << "\n";
+                        if (*a == 'q') {
+                            chat_is_closed = true;
+                            strcpy(a, ending_message.c_str());
+                        }
+
+                        int temp_height, temp_width;
+                        getyx(stdscr, temp_height, temp_width);
+                        mvprintw(cur_height, 0, "%s%s", server_message.c_str(), a);
+                        getyx(stdscr, cur_height, cur_width);
+                        move(temp_height, temp_width);
+                        refresh();
+                        ++cur_height;
+                    }
+                });
+
+                std::thread sender([&]() {
+                    while (!chat_is_closed) {
+                        move(terminal.height - 2, 1);
+                        getstr(a);
+                        logger << "You entered: " << a << "\n";
+                        mvprintw(cur_height, 0, "%s%s", my_message.c_str(), a);
+                        refresh();
+                        getyx(stdscr, cur_height, cur_width);
+                        ++cur_height;
+
+                        if (*a == 'q') {
+                            chat_is_closed = true;
+                        }
+
+                        for (int i = 0; i < 100; ++i) {
+                            client.buffer[i] = a[i];
+                        }
+                        client.SendMessage(logger);
+                    }
+                });
+                sender.join();
+                client.TerminateConnection();
+                receiver.join();
+            }
         } else if (option == 3) {   // unused, for parameters
             CamVideo(terminal, camera, logger); // Some dummy self-printing camera script
         } else if (option == 4) {
-            TerminateTerminalWindow();
             break;
         }
     }

@@ -14,27 +14,3 @@ void Logger::ClearLog() {
 Logger::~Logger() {
     error_log.close();
 }
-
-template<class T>
-std::fstream &Logger::operator<<(T log) {
-    error_log << log;
-    return error_log;
-}
-
-template<>
-std::fstream &Logger::operator<<(int log) {
-    error_log << log;
-    return error_log;
-}
-
-template<>
-std::fstream &Logger::operator<<(char log) {
-    error_log << log;
-    return error_log;
-}
-
-template<>
-std::fstream &Logger::operator<<(const char* log) {
-    error_log << *log;
-    return error_log;
-}
