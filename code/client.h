@@ -8,9 +8,11 @@
 #include <netdb.h>
 #include "logger.h"
 
+enum {BUF_SIZE = 32768};
 
 class Client {
 public:
+    Client() = default;
 
     int Connect(Logger &logger);
 
@@ -18,10 +20,10 @@ public:
 
     int SendMessage(Logger &logger);
 
-    void TerminateConnection();
+    void TerminateConnection(Logger &logger) const;
 
-    char buffer[32768];
+    char buffer[BUF_SIZE];
 
 private:
-    int sockfd;
+    int sock_fd;
 };

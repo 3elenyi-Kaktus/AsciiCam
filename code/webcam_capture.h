@@ -23,6 +23,7 @@ public:
 
     void PreprocessFrame(int height, int width);
 
+    bool is_initialized;
 private:
     cv::Mat frame;
     cv::VideoCapture cam;

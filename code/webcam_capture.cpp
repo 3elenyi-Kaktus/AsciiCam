@@ -1,13 +1,17 @@
 #include "webcam_capture.h"
 
 WebCamera::WebCamera(Logger &logger) {
+    is_initialized = false;
     int deviceID = 0;             // 0 = open default camera
     int apiID = cv::CAP_ANY;      // auto api
     cam.open(deviceID, apiID);
     // check if we succeeded
     if (!cam.isOpened()) {
         logger << "ERROR! Unable to open camera\n";
+        return;
     }
+    logger << "Camera initialized successfully\n";
+    is_initialized = true;
 }
 
 cv::Mat &WebCamera::GetFrame() {

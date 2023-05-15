@@ -10,7 +10,7 @@ public:
 
     template<class T>
     std::fstream &operator<<(T log) {
-        error_log << log;
+        error_log << log << std::flush;
         return error_log;
     }
 
