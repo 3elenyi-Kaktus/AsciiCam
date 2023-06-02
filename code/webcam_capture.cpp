@@ -1,5 +1,13 @@
 #include "webcam_capture.h"
 
+std::pair<int, int> ConvertSizeToSymb(std::pair<int, int> &size) {
+    return {size.first / ASCII_SYMBOL_HEIGHT, size.second / ASCII_SYMBOL_WIDTH};
+}
+
+std::pair<int, int> ConvertSizeToPx(std::pair<int, int> &size) {
+    return {size.first * ASCII_SYMBOL_HEIGHT, size.second * ASCII_SYMBOL_WIDTH};
+}
+
 WebCamera::WebCamera(Logger &logger) {
     is_initialized = false;
     int deviceID = 0;             // 0 = open default camera
@@ -26,7 +34,7 @@ void WebCamera::GetNewFrame(Logger &logger) {
     }
 }
 
-void WebCamera::PreprocessFrame(int height, int width) {
+std::pair<int, int> WebCamera::GetFittedFrameSize(int height, int width) {
     // convert size of the area we want to fit in from symbols to pixels
     height *= ASCII_SYMBOL_HEIGHT;
     width *= ASCII_SYMBOL_WIDTH;
@@ -51,15 +59,19 @@ void WebCamera::PreprocessFrame(int height, int width) {
         new_height = height_1;
         new_width = width_1;
     }
-    cv::Size new_size(new_width, new_height);
+
+    return {new_height, new_width};
+}
+
+void WebCamera::PreprocessFrame(std::pair<int, int> &size) {
+    cv::Size frame_size(size.second, size.first);
     // first resize
-    cv::resize(frame, frame, new_size, cv::INTER_AREA);
+    cv::resize(frame, frame, frame_size, cv::INTER_AREA);
 
     // another scaling of the image for the correct mapping between pixels and symbols
-    int new_height_in_symb = new_height / ASCII_SYMBOL_HEIGHT;
-    int new_width_in_symb = new_width / ASCII_SYMBOL_WIDTH;
-    cv::Size new_size_symb(new_width_in_symb, new_height_in_symb);
-    cv::resize(frame, frame, new_size_symb, cv::INTER_AREA);
+    std::pair<int, int> size_symb = ConvertSizeToSymb(size);
+    cv::Size frame_size_symb(size_symb.second, size_symb.first);
+    cv::resize(frame, frame, frame_size_symb, cv::INTER_AREA);
 
     // convert image to grayscale
     cv::cvtColor(frame, frame, cv::COLOR_RGB2GRAY);

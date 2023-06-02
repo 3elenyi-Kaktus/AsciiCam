@@ -21,10 +21,16 @@ public:
 
     void GetNewFrame(Logger &logger);
 
-    void PreprocessFrame(int height, int width);
+    std::pair<int, int> GetFittedFrameSize(int height, int width);
+
+    void PreprocessFrame(std::pair<int, int> &size);
 
     bool is_initialized;
 private:
     cv::Mat frame;
     cv::VideoCapture cam;
 };
+
+std::pair<int, int> ConvertSizeToSymb(std::pair<int, int> &size); // params: {h, w}
+
+std::pair<int, int> ConvertSizeToPx(std::pair<int, int> &size); // params: {h, w}
