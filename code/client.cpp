@@ -3,7 +3,7 @@
 
 int Client::Connect(Logger &logger) {
     char port_no[] = "33333\0";
-    char ipaddr[] = "51.250.20.93\0";
+    char ipaddr[] = "51.250.109.142\0";
 
     struct addrinfo hints{};
     hints.ai_family = AF_INET;
@@ -39,8 +39,10 @@ int Client::Connect(Logger &logger) {
 }
 
 int Client::GetMessage(Logger &logger) {
-    bzero(buffer, BUF_SIZE);
-    ssize_t n = recv(sock_fd, buffer, BUF_SIZE, MSG_WAITALL);
+    bzero(recv_buf, BUF_SIZE);
+    logger << "ent wait\n";
+    ssize_t n = recv(sock_fd, recv_buf, BUF_SIZE, MSG_WAITALL);
+    logger << "leave wait\n";
     if (n <= 0) {
         logger << "ERROR on reading from socket\n";
         return -1;
@@ -49,7 +51,7 @@ int Client::GetMessage(Logger &logger) {
 }
 
 int Client::SendMessage(Logger &logger) {
-    ssize_t n = send(sock_fd, buffer, BUF_SIZE, MSG_NOSIGNAL);
+    ssize_t n = send(sock_fd, send_buf, BUF_SIZE, MSG_NOSIGNAL);
     if (n <= 0) {
         logger << "ERROR on writing to socket\n";
         return -1;

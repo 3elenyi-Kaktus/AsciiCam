@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fstream"
+#include "mutex"
 
 class Logger {
 public:
@@ -10,6 +11,7 @@ public:
 
     template<class T>
     std::fstream &operator<<(T log) {
+        std::lock_guard<std::mutex> lock_(writer);
         error_log << log << std::flush;
         return error_log;
     }
@@ -19,4 +21,5 @@ public:
 private:
     std::fstream error_log;
     std::string path;
+    std::mutex writer;
 };

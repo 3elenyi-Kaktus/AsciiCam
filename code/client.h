@@ -22,7 +22,8 @@ public:
 
     void TerminateConnection(Logger &logger) const;
 
-    char buffer[BUF_SIZE];
+    char send_buf[BUF_SIZE];
+    char recv_buf[BUF_SIZE];
 
 private:
     int sock_fd;

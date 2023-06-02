@@ -1,8 +1,20 @@
 #include "executor.h"
 
 #include "thread"
+#include "string"
 
 void Execute() {
+    std::fstream file;
+    file.open("cout_cerr.txt", std::ios::out);
+    std::string line;
+
+    // Get the streambuffer of the file
+    std::streambuf* stream_buffer_file = file.rdbuf();
+
+    // Redirect cout/cerr to file
+    std::cout.rdbuf(stream_buffer_file);
+    std::cerr.rdbuf(stream_buffer_file);
+
     Logger logger;
     logger << "Start of AsciiCam\n";
     Terminal terminal;
@@ -24,92 +36,108 @@ void Execute() {
             int width = terminal.width - 4;
             int companion_height, companion_width, companion_new_height, companion_new_width;
             bool other_side_has_camera;
-            logger << "Initial height x width: " << height << "x" << width << "\n";
-            snprintf(client.buffer, sizeof(client.buffer), "%d %d %d", height, width, camera.is_initialized);
-            client.SendMessage(logger);
-            logger << "Sent height x width to host: " << height << "x" << width << "\n";
-            logger << "Camera is " << ((camera.is_initialized) ? "" : "not ") << "initialized\n";
 
+            logger << "Terminal height x width: " << height << "x" << width << "\n";
+            logger << "Camera is " << ((camera.is_initialized) ? "" : "not ") << "initialized\n";
+            snprintf(client.send_buf, sizeof(client.send_buf), "%d %d %d", height, width, camera.is_initialized);
+            client.SendMessage(logger);
             client.GetMessage(logger);
-            char *end;
-            char *end2;
-            companion_height = strtol(client.buffer, &end, 10);
-            companion_width = strtol(end, &end2, 10);
-            other_side_has_camera = strtol(end2, &end, 10);
-            logger << "Got following companion's height x width: " << companion_height << "x" << companion_width
-                   << "\n";
+
+            sscanf(client.recv_buf, "%d %d %d", &companion_height, &companion_width, &other_side_has_camera);
+//            char *end;
+//            char *end2;
+//            companion_height = strtol(client.recv_buf, &end, 10);
+//            companion_width = strtol(end, &end2, 10);
+//            other_side_has_camera = strtol(end2, &end, 10);
+            logger << "Got following companion's height x width: " << companion_height << "x" << companion_width << "\n";
             logger << "Companion's camera is " << ((other_side_has_camera) ? "" : "not ") << "initialized\n";
             if (camera.is_initialized) {
                 camera.GetNewFrame(logger);
                 camera.PreprocessFrame(companion_height, companion_width);
                 companion_new_height = camera.GetFrame().rows;
                 companion_new_width = camera.GetFrame().cols;
-                logger << "Frame preprocessing returned following height x width: " << companion_new_height << "x"
+                logger << "Companion's frame resulting size is height x width: " << companion_new_height << "x"
                        << companion_new_width << "\n";
+            } else {
+                companion_new_height = 10;
+                companion_new_width = 10;
             }
-            snprintf(client.buffer, sizeof(client.buffer), "%d %d", companion_new_height, companion_new_width);
+            snprintf(client.send_buf, sizeof(client.send_buf), "%d %d", companion_new_height, companion_new_width);
             client.SendMessage(logger);
-            logger << "Sent input frame size to client\n";
-
             client.GetMessage(logger);
-            height = strtol(client.buffer, &end, 10);
-            width = strtol(end, &end2, 10);
-            logger << "Got following companion height x width from client: " << height << "x" << width << "\n";
 
+            sscanf(client.recv_buf, "%d %d", &height, &width);
+//            height = strtol(client.recv_buf, &end, 10);
+//            width = strtol(end, &end2, 10);
+            logger << "Got following frame resulting height x width: " << height << "x" << width << "\n";
             // Enter get/send state, in which in 2 threads:
             // 1. Get frame, Convert frame, Send frame
             // 2. Get other persons frame, Print it
             // Threads are activated only if their existence is appropriate
+
             std::thread receiver;
-            if (other_side_has_camera) {
+//            if (other_side_has_camera) {
                 logger << "Created receiving thread\n";
                 receiver = std::thread([&]() {
+                    int n = 0;
                     while (true) {
-                        timeout(1); // wait for keypress
-                        if (getch() != ERR) {
-                            break;
-                        }
+//                        timeout(1); // wait for keypress
+//                        if (getch() != ERR) {
+//                            break;
+//                        }
+                        logger << "getting new frame n." << n << "\n";
                         if (client.GetMessage(logger) < 0) {
                             break;
                         }
-                        logger << "got new frame\n";
                         std::vector<std::vector<u_char>> matrix(height, std::vector<u_char>(width));
+//                        logger << client.recv_buf << "\n\n";
                         for (int i = 0; i < height; ++i) {
                             for (int j = 0; j < width; ++j) {
-                                matrix[i][j] = client.buffer[i * width + j];
+                                matrix[i][j] = client.recv_buf[i * width + j];
                             }
                         }
                         PrintFrame(terminal, matrix);
+                        ++n;
                     }
                 });
-            }
-            logger << "going through\n";
+//            }
             std::thread sender;
-            if (camera.is_initialized) {
+//            if (camera.is_initialized) {
                 logger << "Created sending thread\n";
                 sender = std::thread([&]() {
+                    int n = 0;
                     while (true) {
-                        timeout(1); // wait for keypress
-                        if (getch() != ERR) {
-                            break;
-                        }
-                        logger << "getting new frame\n";
-                        camera.GetNewFrame(logger);
-                        camera.PreprocessFrame(companion_height, companion_width);
-                        std::vector<std::vector<u_char>> ascii_matrix = ConvertFrameToASCII(camera.GetFrame());
-                        logger << "ascii matrix size to send: " << ascii_matrix.size() << "x" << ascii_matrix[0].size() << "\n";
-                        for (int i = 0; i < ascii_matrix.size(); ++i) {
-                            for (int j = 0; j < ascii_matrix[0].size(); ++j) {
-                                client.buffer[i * ascii_matrix[0].size() + j] = ascii_matrix[i][j];
+//                        timeout(1); // wait for keypress
+//                        if (getch() != ERR) {
+//                            break;
+//                        }
+                        if (camera.is_initialized) {
+                            logger << "making new frame n." << n << "\n";
+                            camera.GetNewFrame(logger);
+                            camera.PreprocessFrame(companion_height, companion_width);
+                            std::vector<std::vector<u_char>> ascii_matrix = ConvertFrameToASCII(camera.GetFrame());
+                            for (int i = 0; i < ascii_matrix.size(); ++i) {
+                                for (int j = 0; j < ascii_matrix[0].size(); ++j) {
+                                    client.send_buf[i * ascii_matrix[0].size() + j] = ascii_matrix[i][j];
+                                }
+                            }
+                        } else {
+                            logger << "making new msg n." << n << "\n";
+                            std::string msg = "here could be frame n." + std::to_string(n);
+                            for (int i = 0; i < msg.length(); ++i) {
+                                client.send_buf[i] = msg[i];
+                            }
+                            for (int i = msg.length(); i < BUF_SIZE; ++i) {
+                                client.send_buf[i] = ' ';
                             }
                         }
                         if (client.SendMessage(logger) < 0) {
                             break;
                         }
+                        ++n;
                     }
                 });
-            }
-            logger << "got all way through\n";
+//            }
 
             if (sender.joinable()) {
                 sender.join();
@@ -151,7 +179,7 @@ void Execute() {
                     client.GetMessage(logger);
 
                     for (int i = 0; i < 80; ++i) {
-                        a[i] = client.buffer[i];
+                        a[i] = client.send_buf[i];
                     }
                     logger << "Got msg from server: " << a << "\n";
                     if (*a == 'q') {
@@ -184,9 +212,9 @@ void Execute() {
                     }
 
                     for (int i = 0; i < 100; ++i) {
-                        client.buffer[i] = a[i];
+                        client.send_buf[i] = a[i];
                     }
-                    logger << "sending message: " << client.buffer << "\n";
+                    logger << "sending message: " << client.send_buf << "\n";
                     client.SendMessage(logger);
                 }
             });

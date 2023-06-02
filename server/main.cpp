@@ -1,13 +1,6 @@
 #include "user_channel.h"
 
 
-void dont_turn_children_into_zombies() {
-    struct sigaction a{};
-    a.sa_handler = SIG_DFL;
-    a.sa_flags = SA_NOCLDWAIT;
-    sigaction(SIGCHLD, &a, nullptr);
-}
-
 int CreatePassPoint(Logger &logger) {
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_fd < 0) {
@@ -42,13 +35,19 @@ int main() {
     int sock_fd = CreatePassPoint(logger);
     if (sock_fd < 0) {
         logger << "Couldn't create passpoint socket. Terminating\n";
+        return 1;
     }
 
     UserChannel channel;
     if (channel.Create(sock_fd, logger) < 0) {
         logger << "Couldn't create user channel. Terminating\n";
+        return 1;
     }
     channel.StartTransmitting(logger);
     logger << "Ended transmitting successfully. Terminating\n";
+    std::cout << "Ended transmitting successfully. Terminating\n";
+    sleep(5);
+    close(channel.initiator_fd);
+    close(channel.acceptor_fd);
     return 0;
 }

@@ -27,6 +27,7 @@ int UserChannel::GetMessage(int sockfd, char *buffer, Logger &logger) {
     ssize_t n = recv(sockfd, buffer, BUF_SIZE, MSG_WAITALL);
     if (n <= 0) {
         logger << "ERROR on reading from socket\n";
+        std::cout << "ERROR on reading to socket\n";
         return -1;
     }
     if (strlen(buffer) < 50) {
@@ -39,6 +40,7 @@ int UserChannel::SendMessage(int sockfd, char *buffer, Logger &logger) {
     ssize_t n = send(sockfd, buffer, BUF_SIZE, MSG_NOSIGNAL);
     if (n <= 0) {
         logger << "ERROR on sending to socket\n";
+        std::cout << "ERROR on sending to socket\n";
         return -1;
     }
     if (strlen(buffer) < 50) {
@@ -54,11 +56,13 @@ void UserChannel::StartTransmitting(Logger &logger) {
         while (is_active) {
             if (GetMessage(initiator_fd, init_buffer, logger) < 0) {
                 logger << "Initiator disconnected\n";
+                std::cout << "Initiator disconnected\n";
                 TerminateChannel(logger);
                 break;
             }
             if (SendMessage(acceptor_fd, init_buffer, logger) < 0) {
                 logger << "Acceptor disconnected\n";
+                std::cout << "Acceptor disconnected\n";
                 TerminateChannel(logger);
                 break;
             }
@@ -69,11 +73,13 @@ void UserChannel::StartTransmitting(Logger &logger) {
         while (is_active) {
             if (GetMessage(acceptor_fd, acc_buffer, logger) < 0) {
                 logger << "Acceptor disconnected\n";
+                std::cout << "Acceptor disconnected\n";
                 TerminateChannel(logger);
                 break;
             }
             if (SendMessage(initiator_fd, acc_buffer, logger) < 0) {
                 logger << "Initiator disconnected\n";
+                std::cout << "Initiator disconnected\n";
                 TerminateChannel(logger);
                 break;
             }
@@ -86,7 +92,8 @@ void UserChannel::StartTransmitting(Logger &logger) {
 
 void UserChannel::TerminateChannel(Logger &logger) {
     is_active = false;
-    close(initiator_fd);
-    close(acceptor_fd);
-    logger << "Channel terminated\n";
+    shutdown(initiator_fd, SHUT_RDWR);
+    shutdown(acceptor_fd, SHUT_RDWR);
+    logger << "Channel shutted down\n";
+    std::cout << "Channel shutted down\n";
 }
