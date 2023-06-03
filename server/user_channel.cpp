@@ -7,18 +7,48 @@ int UserChannel::Create(int sock_fd, Logger &logger) {
     initiator_fd = accept(sock_fd, (struct sockaddr *) &init_addr, &init_size);
     if (initiator_fd < 0) {
         logger << "ERROR on accepting initial host\n";
+        std::cout << "ERROR on accepting initial host\n";
         return -1;
     }
     logger << "Initiator: " << inet_ntoa(init_addr.sin_addr) << ", " << ntohs(init_addr.sin_port) << "\n";
+    std::cout << "Initiator: " << inet_ntoa(init_addr.sin_addr) << ", " << ntohs(init_addr.sin_port) << "\n";
+
+    srand((unsigned) time(nullptr) % INT_MAX);
+    int random = rand() % 10000;
+    logger << "Created channel id: " << random << "\n";
+    std::cout << "Created channel id: " << random << "\n";
+    std::string a = std::to_string(random);
+    for (int i = 0; i < a.size(); ++i) {
+        init_buffer[i] = a[i];
+    }
+    init_buffer[a.size()] = '\0';
+    SendMessage(initiator_fd, init_buffer, logger);
 
     struct sockaddr_in acc_addr{};
     socklen_t acc_size = sizeof(acc_addr);
     acceptor_fd = accept(sock_fd, (struct sockaddr *) &acc_addr, &acc_size);
     if (acceptor_fd < 0) {
         logger << "ERROR on accepting client\n";
+        std::cout << "ERROR on accepting client\n";
         return -1;
     }
     logger << "Acceptor: " << inet_ntoa(acc_addr.sin_addr) << ", " << ntohs(acc_addr.sin_port) << "\n";
+    std::cout << "Acceptor: " << inet_ntoa(acc_addr.sin_addr) << ", " << ntohs(acc_addr.sin_port) << "\n";;
+
+    while (true) {
+        char *end;
+        GetMessage(acceptor_fd, acc_buffer, logger);
+        if (strtol(acc_buffer, &end, 10) == random) {
+            acc_buffer[0] = '1';
+            acc_buffer[1] = '\0';
+            SendMessage(acceptor_fd, acc_buffer, logger);
+            break;
+        }
+        acc_buffer[0] = '0';
+        acc_buffer[1] = '\0';
+        SendMessage(acceptor_fd, acc_buffer, logger);
+    }
+    SendMessage(initiator_fd, init_buffer, logger);
     return 0;
 }
 
@@ -30,9 +60,6 @@ int UserChannel::GetMessage(int sockfd, char *buffer, Logger &logger) {
         std::cout << "ERROR on reading to socket\n";
         return -1;
     }
-    if (strlen(buffer) < 50) {
-        logger << "Got message: " << buffer << "\n";
-    }
     return 0;
 }
 
@@ -42,9 +69,6 @@ int UserChannel::SendMessage(int sockfd, char *buffer, Logger &logger) {
         logger << "ERROR on sending to socket\n";
         std::cout << "ERROR on sending to socket\n";
         return -1;
-    }
-    if (strlen(buffer) < 50) {
-        logger << "Sent message: " << buffer << "\n";
     }
     return 0;
 }

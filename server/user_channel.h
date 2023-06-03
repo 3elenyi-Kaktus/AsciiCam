@@ -1,6 +1,8 @@
 #pragma once
 
 #include "iostream"
+#include "random"
+#include "climits"
 #include <csignal>
 #include <cstring>
 #include <arpa/inet.h>

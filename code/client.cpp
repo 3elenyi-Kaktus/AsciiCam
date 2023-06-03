@@ -40,9 +40,7 @@ int Client::Connect(Logger &logger) {
 
 int Client::GetMessage(Logger &logger) {
     bzero(recv_buf, BUF_SIZE);
-    logger << "ent wait\n";
     ssize_t n = recv(sock_fd, recv_buf, BUF_SIZE, MSG_WAITALL);
-    logger << "leave wait\n";
     if (n <= 0) {
         logger << "ERROR on reading from socket\n";
         return -1;

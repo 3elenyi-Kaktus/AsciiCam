@@ -35,6 +35,10 @@ ClientServerChoice::ClientServerChoice() {
     num_of_options = 2;
 }
 
+InputMenu::InputMenu() {
+    header = "Please, enter the room id to connect to:";
+}
+
 Terminal::Terminal() {
     initscr();
     keypad(stdscr, true); // Enable system keys
@@ -85,6 +89,21 @@ int PrintMenu(Terminal &terminal, Menu &menu) {
     }
 }
 
+std::string PrintInputMenu(Terminal &terminal, InputMenu &input_menu) {
+    clear();
+    int pos_x = terminal.width / 2;
+    int pos_y = (terminal.height - 10) / 2; // 5 for header offset from menu block
+    mvprintw(pos_y, pos_x - input_menu.header.length() / 2, "%s", input_menu.header.c_str());
+    mvaddch(pos_y + 2, pos_x, '>');
+    refresh();
+    char input[100];
+    echo();
+    getstr(input);
+    noecho();
+    std::string in(input);
+    return in;
+}
+
 void PrintFrame(Terminal &terminal, std::vector<std::vector<u_char>> &matrix) {
     int pos_x = (terminal.width - matrix[0].size()) / 2;
     int pos_y = (terminal.height - matrix.size()) / 2;
@@ -100,3 +119,5 @@ void ClearScreen() {
     clear();
     refresh();
 }
+
+

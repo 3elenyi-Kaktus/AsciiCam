@@ -24,11 +24,43 @@ void Execute() {
         //mvprintw(terminal.ROWS - 1, 0, "The number of rows - %d, columns - %d\n", terminal.ROWS, terminal.COLS);
         int option = PrintMenu(terminal, interface.menu);
         if (option == 1) {
+            option = PrintMenu(terminal, interface.CS_choice);
             Client client{};
             if (client.Connect(logger) < 0) {
                 break;
             }
-//            option = PrintMenu(terminal, interface.CS_choice);
+            if (option == 1) { // host
+                int pass_code;
+                client.GetMessage(logger);
+                sscanf(client.recv_buf, "%d", &pass_code);
+                logger << "Got passcode from server: " << pass_code << "\n";
+
+                client.GetMessage(logger);
+                logger << "Connection with peer established\n";
+            } else { // client
+                while (true) {
+                    std::string input = PrintInputMenu(terminal, interface.passcode_enter);
+                    logger << "Entered passcode: " << input << "\n";
+                    for (int i = 0; i < input.length(); ++i) {
+                        client.send_buf[i] = input[i];
+                    }
+                    client.send_buf[input.length()] = '\0';
+                    client.SendMessage(logger);
+                    client.GetMessage(logger);
+                    int accepted;
+                    sscanf(client.recv_buf, "%d", &accepted);
+                    if (accepted) {
+                        logger << "Passcode accepted\n";
+                        break;
+                    }
+                    logger << "Passcode denied\n";
+                }
+                logger << "Connection with peer established\n";
+            }
+
+
+
+
             ClearScreen();
 
 
@@ -53,9 +85,10 @@ void Execute() {
             logger << "Companion's camera is " << ((other_side_has_camera) ? "" : "not ") << "initialized\n";
             if (camera.is_initialized) {
                 camera.GetNewFrame(logger);
-                camera.PreprocessFrame(companion_height, companion_width);
-                companion_new_height = camera.GetFrame().rows;
-                companion_new_width = camera.GetFrame().cols;
+                std::pair<int, int> ret_size = camera.GetFittedFrameSize(companion_height, companion_width);
+                ret_size = ConvertSizeToSymb(ret_size);
+                companion_new_height = ret_size.first;
+                companion_new_width = ret_size.second;
                 logger << "Companion's frame resulting size is height x width: " << companion_new_height << "x"
                        << companion_new_width << "\n";
             } else {
@@ -73,7 +106,8 @@ void Execute() {
             // Enter get/send state, in which in 2 threads:
             // 1. Get frame, Convert frame, Send frame
             // 2. Get other persons frame, Print it
-            // Threads are activated only if their existence is appropriate
+            // Threads are activated only if their existence is appropriate (? not anymore)
+            std::mutex mutex;
 
             std::thread receiver;
 //            if (other_side_has_camera) {
@@ -81,11 +115,13 @@ void Execute() {
                 receiver = std::thread([&]() {
                     int n = 0;
                     while (true) {
-//                        timeout(1); // wait for keypress
-//                        if (getch() != ERR) {
-//                            break;
-//                        }
-                        logger << "getting new frame n." << n << "\n";
+                        mutex.lock();
+                        timeout(1); // wait for keypress
+                        if (getch() != ERR) {
+                            mutex.unlock();
+                            break;
+                        }
+                        mutex.unlock();
                         if (client.GetMessage(logger) < 0) {
                             break;
                         }
@@ -96,7 +132,9 @@ void Execute() {
                                 matrix[i][j] = client.recv_buf[i * width + j];
                             }
                         }
+                        mutex.lock();
                         PrintFrame(terminal, matrix);
+                        mutex.unlock();
                         ++n;
                     }
                 });
@@ -106,15 +144,19 @@ void Execute() {
                 logger << "Created sending thread\n";
                 sender = std::thread([&]() {
                     int n = 0;
+                    std::pair<int, int> size = std::make_pair(companion_new_height, companion_new_width);
+                    size = ConvertSizeToPx(size);
                     while (true) {
-//                        timeout(1); // wait for keypress
-//                        if (getch() != ERR) {
-//                            break;
-//                        }
+                        mutex.lock();
+                        timeout(1); // wait for keypress
+                        if (getch() != ERR) {
+                            mutex.unlock();
+                            break;
+                        }
+                        mutex.unlock();
                         if (camera.is_initialized) {
-                            logger << "making new frame n." << n << "\n";
                             camera.GetNewFrame(logger);
-                            camera.PreprocessFrame(companion_height, companion_width);
+                            camera.PreprocessFrame(size);
                             std::vector<std::vector<u_char>> ascii_matrix = ConvertFrameToASCII(camera.GetFrame());
                             for (int i = 0; i < ascii_matrix.size(); ++i) {
                                 for (int j = 0; j < ascii_matrix[0].size(); ++j) {
@@ -122,7 +164,6 @@ void Execute() {
                                 }
                             }
                         } else {
-                            logger << "making new msg n." << n << "\n";
                             std::string msg = "here could be frame n." + std::to_string(n);
                             for (int i = 0; i < msg.length(); ++i) {
                                 client.send_buf[i] = msg[i];
@@ -242,7 +283,8 @@ void CamVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
         logger << "Frame was taken in " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
                << "ms\n";
         start = std::chrono::high_resolution_clock::now();
-        camera.PreprocessFrame(43, 132);
+        std::pair<int, int> sz = std::make_pair(43, 132);
+        camera.PreprocessFrame(sz);
         end = std::chrono::high_resolution_clock::now();
         logger << "Frame was remapped in "
                << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";

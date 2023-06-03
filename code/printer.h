@@ -23,10 +23,19 @@ public:
     ClientServerChoice();
 };
 
+class InputMenu {
+public:
+    InputMenu();
+
+    std::string header;
+    std::string input;
+};
+
 class GUI {
 public:
     MainMenu menu;
     ClientServerChoice CS_choice;
+    InputMenu passcode_enter;
 };
 
 
@@ -42,6 +51,8 @@ public:
 
 
 int PrintMenu(Terminal &terminal, Menu &menu);
+
+std::string PrintInputMenu(Terminal &terminal, InputMenu &input_menu);
 
 void PrintFrame(Terminal &terminal, std::vector<std::vector<u_char>> &matrix);
 
