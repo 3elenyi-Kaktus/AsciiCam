@@ -3,13 +3,49 @@
 #include "thread"
 #include "string"
 
+void SelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
+    camera.GetNewFrame(logger);
+    std::pair<int, int> ret_size = camera.GetFittedFrameSize(terminal.height, terminal.width);
+    while (true) {
+        auto start1 = std::chrono::high_resolution_clock::now();
+        timeout(1); // wait for keypress
+        if (getch() != ERR) {
+            break;
+        }
+        auto start = std::chrono::high_resolution_clock::now();
+        camera.GetNewFrame(logger);
+        auto end = std::chrono::high_resolution_clock::now();
+        logger << "Frame was taken in " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+               << "ms\n";
+        start = std::chrono::high_resolution_clock::now();
+
+        camera.PreprocessFrame(ret_size);
+        end = std::chrono::high_resolution_clock::now();
+        logger << "Frame was remapped in "
+               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
+        start = std::chrono::high_resolution_clock::now();
+        std::vector<std::vector<u_char>> ascii_matrix = ConvertFrameToASCII(camera.GetFrame());
+        end = std::chrono::high_resolution_clock::now();
+        logger << "Frame was converted in "
+               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
+        start = std::chrono::high_resolution_clock::now();
+        PrintFrame(terminal, ascii_matrix);
+        end = std::chrono::high_resolution_clock::now();
+        logger << "Frame was printed in " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+               << "ms\n";
+        end = std::chrono::high_resolution_clock::now();
+        logger << "All cycle done in " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start1).count()
+               << "ms\n";
+    }
+}
+
 void Execute() {
     std::fstream file;
     file.open("cout_cerr.txt", std::ios::out);
     std::string line;
 
     // Get the streambuffer of the file
-    std::streambuf* stream_buffer_file = file.rdbuf();
+    std::streambuf *stream_buffer_file = file.rdbuf();
 
     // Redirect cout/cerr to file
     std::cout.rdbuf(stream_buffer_file);
@@ -59,8 +95,6 @@ void Execute() {
             }
 
 
-
-
             ClearScreen();
 
 
@@ -81,7 +115,8 @@ void Execute() {
 //            companion_height = strtol(client.recv_buf, &end, 10);
 //            companion_width = strtol(end, &end2, 10);
 //            other_side_has_camera = strtol(end2, &end, 10);
-            logger << "Got following companion's height x width: " << companion_height << "x" << companion_width << "\n";
+            logger << "Got following companion's height x width: " << companion_height << "x" << companion_width
+                   << "\n";
             logger << "Companion's camera is " << ((other_side_has_camera) ? "" : "not ") << "initialized\n";
             if (camera.is_initialized) {
                 camera.GetNewFrame(logger);
@@ -111,73 +146,73 @@ void Execute() {
 
             std::thread receiver;
 //            if (other_side_has_camera) {
-                logger << "Created receiving thread\n";
-                receiver = std::thread([&]() {
-                    int n = 0;
-                    while (true) {
-                        mutex.lock();
-                        timeout(1); // wait for keypress
-                        if (getch() != ERR) {
-                            mutex.unlock();
-                            break;
-                        }
+            logger << "Created receiving thread\n";
+            receiver = std::thread([&]() {
+                int n = 0;
+                while (true) {
+                    mutex.lock();
+                    timeout(1); // wait for keypress
+                    if (getch() != ERR) {
                         mutex.unlock();
-                        if (client.GetMessage(logger) < 0) {
-                            break;
-                        }
-                        std::vector<std::vector<u_char>> matrix(height, std::vector<u_char>(width));
-//                        logger << client.recv_buf << "\n\n";
-                        for (int i = 0; i < height; ++i) {
-                            for (int j = 0; j < width; ++j) {
-                                matrix[i][j] = client.recv_buf[i * width + j];
-                            }
-                        }
-                        mutex.lock();
-                        PrintFrame(terminal, matrix);
-                        mutex.unlock();
-                        ++n;
+                        break;
                     }
-                });
+                    mutex.unlock();
+                    if (client.GetMessage(logger) < 0) {
+                        break;
+                    }
+                    std::vector<std::vector<u_char>> matrix(height, std::vector<u_char>(width));
+//                        logger << client.recv_buf << "\n\n";
+                    for (int i = 0; i < height; ++i) {
+                        for (int j = 0; j < width; ++j) {
+                            matrix[i][j] = client.recv_buf[i * width + j];
+                        }
+                    }
+                    mutex.lock();
+                    PrintFrame(terminal, matrix);
+                    mutex.unlock();
+                    ++n;
+                }
+            });
 //            }
             std::thread sender;
 //            if (camera.is_initialized) {
-                logger << "Created sending thread\n";
-                sender = std::thread([&]() {
-                    int n = 0;
-                    std::pair<int, int> size = std::make_pair(companion_new_height, companion_new_width);
-                    size = ConvertSizeToPx(size);
-                    while (true) {
-                        mutex.lock();
-                        timeout(1); // wait for keypress
-                        if (getch() != ERR) {
-                            mutex.unlock();
-                            break;
-                        }
+            logger << "Created sending thread\n";
+            sender = std::thread([&]() {
+                int n = 0;
+                std::pair<int, int> size = std::make_pair(companion_new_height, companion_new_width);
+                size = ConvertSizeToPx(size);
+                while (true) {
+                    mutex.lock();
+                    timeout(1); // wait for keypress
+                    if (getch() != ERR) {
                         mutex.unlock();
-                        if (camera.is_initialized) {
-                            camera.GetNewFrame(logger);
-                            camera.PreprocessFrame(size);
-                            std::vector<std::vector<u_char>> ascii_matrix = ConvertFrameToASCII(camera.GetFrame());
-                            for (int i = 0; i < ascii_matrix.size(); ++i) {
-                                for (int j = 0; j < ascii_matrix[0].size(); ++j) {
-                                    client.send_buf[i * ascii_matrix[0].size() + j] = ascii_matrix[i][j];
-                                }
-                            }
-                        } else {
-                            std::string msg = "here could be frame n." + std::to_string(n);
-                            for (int i = 0; i < msg.length(); ++i) {
-                                client.send_buf[i] = msg[i];
-                            }
-                            for (int i = msg.length(); i < BUF_SIZE; ++i) {
-                                client.send_buf[i] = ' ';
-                            }
-                        }
-                        if (client.SendMessage(logger) < 0) {
-                            break;
-                        }
-                        ++n;
+                        break;
                     }
-                });
+                    mutex.unlock();
+                    if (camera.is_initialized) {
+                        camera.GetNewFrame(logger);
+                        camera.PreprocessFrame(size);
+                        std::vector<std::vector<u_char>> ascii_matrix = ConvertFrameToASCII(camera.GetFrame());
+                        for (int i = 0; i < ascii_matrix.size(); ++i) {
+                            for (int j = 0; j < ascii_matrix[0].size(); ++j) {
+                                client.send_buf[i * ascii_matrix[0].size() + j] = ascii_matrix[i][j];
+                            }
+                        }
+                    } else {
+                        std::string msg = "here could be frame n." + std::to_string(n);
+                        for (int i = 0; i < msg.length(); ++i) {
+                            client.send_buf[i] = msg[i];
+                        }
+                        for (int i = msg.length(); i < BUF_SIZE; ++i) {
+                            client.send_buf[i] = ' ';
+                        }
+                    }
+                    if (client.SendMessage(logger) < 0) {
+                        break;
+                    }
+                    ++n;
+                }
+            });
 //            }
 
             if (sender.joinable()) {
@@ -264,42 +299,9 @@ void Execute() {
             receiver.join();
 
         } else if (option == 3) {   // unused, for parameters
+            SelfVideo(terminal, camera, logger);
         } else if (option == 4) {
             break;
         }
-    }
-}
-
-void CamVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
-    while (true) {
-        auto start1 = std::chrono::high_resolution_clock::now();
-        timeout(1); // wait for keypress
-        if (getch() != ERR) {
-            break;
-        }
-        auto start = std::chrono::high_resolution_clock::now();
-        camera.GetNewFrame(logger);
-        auto end = std::chrono::high_resolution_clock::now();
-        logger << "Frame was taken in " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-               << "ms\n";
-        start = std::chrono::high_resolution_clock::now();
-        std::pair<int, int> sz = std::make_pair(43, 132);
-        camera.PreprocessFrame(sz);
-        end = std::chrono::high_resolution_clock::now();
-        logger << "Frame was remapped in "
-               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
-        start = std::chrono::high_resolution_clock::now();
-        std::vector<std::vector<u_char>> ascii_matrix = ConvertFrameToASCII(camera.GetFrame());
-        end = std::chrono::high_resolution_clock::now();
-        logger << "Frame was converted in "
-               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
-        start = std::chrono::high_resolution_clock::now();
-        PrintFrame(terminal, ascii_matrix);
-        end = std::chrono::high_resolution_clock::now();
-        logger << "Frame was printed in " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-               << "ms\n";
-        end = std::chrono::high_resolution_clock::now();
-        logger << "All cycle done in " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start1).count()
-               << "ms\n";
     }
 }

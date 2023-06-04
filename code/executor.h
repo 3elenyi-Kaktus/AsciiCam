@@ -9,4 +9,4 @@
 
 void Execute();
 
-void CamVideo(Terminal &terminal, WebCamera &camera, Logger &logger);
+void SelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger);
