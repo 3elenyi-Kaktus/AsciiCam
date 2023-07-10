@@ -42,7 +42,6 @@ void SelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
 void Execute() {
     std::fstream file;
     file.open("cout_cerr.txt", std::ios::out);
-    std::string line;
 
     // Get the streambuffer of the file
     std::streambuf *stream_buffer_file = file.rdbuf();
@@ -57,12 +56,16 @@ void Execute() {
     GUI interface;
     WebCamera camera(logger);
     while (true) {
-        //mvprintw(terminal.ROWS - 1, 0, "The number of rows - %d, columns - %d\n", terminal.ROWS, terminal.COLS);
         auto coords = PrintMenu(terminal, interface.menu);
+        // mvprintw(0, 0, "The number of rows - %d, columns - %d\n", terminal.height, terminal.width);
         int option = GetOption(coords, interface.menu.num_of_options);
         if (option == 1) {
             coords = PrintMenu(terminal, interface.CS_choice);
             option = GetOption(coords, interface.CS_choice.num_of_options);
+
+            if (option == 3) {
+                continue;
+            }
             Client client{};
             if (client.Connect(logger) < 0) {
                 break;
@@ -77,7 +80,8 @@ void Execute() {
                 logger << "Connection with peer established\n";
             } else { // client
                 while (true) {
-                    std::string input = PrintInputMenu(terminal, interface.passcode_enter);
+                    coords = PrintInputMenu(terminal, interface.passcode_enter);
+                    std::string input = GetInputFromInputMenu(coords);
                     logger << "Entered passcode: " << input << "\n";
                     for (int i = 0; i < input.length(); ++i) {
                         client.send_buf[i] = input[i];
@@ -302,8 +306,9 @@ void Execute() {
 
         } else if (option == 3) {   // unused, for parameters
             SelfVideo(terminal, camera, logger);
-        } else if (option == 4) {
+        } else if (option == 4) { // exit from application
             break;
+        } else if (option == 5) { // for debug
         }
     }
 }

@@ -6,7 +6,8 @@
 void Menu::Initialize() {
     num_of_options = options.size();
     up_bottom_pad = 1;
-    left_right_pad = 3;
+    left_right_pad = 3; // minimum 2
+    header_offset = 5;
     width = std::max_element(options.begin(), options.end(),
                              [](const auto &a, const auto &b) {
                                  return a.length() < b.length();
@@ -59,6 +60,7 @@ MainMenu::MainMenu() {
             "some chat",
             "Parameters",
             "Exit",
+            "Debug",
     };
     Initialize();
 }
@@ -68,12 +70,23 @@ ClientServerChoice::ClientServerChoice() {
     options = {
             "Create new",
             "Join existing",
+            "Return to menu",
     };
     Initialize();
 }
 
 InputMenu::InputMenu() {
     header = "Please, enter the room id to connect to:";
+    input_lines = {
+            ">       ",
+            "  ¯¯¯¯¯¯",
+    };
+    height = input_lines.size();
+    width = std::max_element(input_lines.begin(), input_lines.end(),
+                             [](const auto &a, const auto &b) {
+                                 return a.length() < b.length();
+                             })->length(); // add padding and borders width
+    header_offset = 2;
 }
 
 Terminal::Terminal() {
@@ -91,20 +104,20 @@ Terminal::~Terminal() {
 std::pair<int, int> PrintMenu(Terminal &terminal, Menu &menu) { // need to add terminal size compatibility
     clear();
     int pos_x = (terminal.width - menu.width) / 2;
-    int pos_y = (terminal.height - menu.height) / 2 - 5; // 5 for header offset from menu block
+    int pos_y = (terminal.height - menu.height) / 2 - menu.header_offset;
     mvprintw(pos_y, pos_x - (menu.header.length() - menu.width) / 2, "%s", menu.header.c_str());
 
     for (int i = 0; i < menu.height; ++i) {
-        mvprintw(pos_y + i + 5, pos_x, "%s", menu.print_lines[i].c_str()); // 5 for header offset from menu block
+        mvprintw(pos_y + i + menu.header_offset, pos_x, "%s", menu.print_lines[i].c_str());
     }
-    int cursor_pos_y = pos_y + (menu.up_bottom_pad + 1) + 5; // 5 for header offset from menu block
-    const int cursor_pos_x = pos_x + menu.left_right_pad;
+    int cursor_pos_y = pos_y + (menu.up_bottom_pad + 1) + menu.header_offset;
+    const int cursor_pos_x = pos_x + menu.left_right_pad - 1;
     mvaddch(cursor_pos_y, cursor_pos_x, '>'); // draw initial cursor
     refresh();
     return std::make_pair(cursor_pos_y, cursor_pos_x);
 }
 
-int GetOption(std::pair<int, int>& coords, int num_of_options) {
+int GetOption(std::pair<int, int> &coords, int num_of_options) {
     int cursor_pos_y = coords.first;
     const int cursor_pos_x = coords.second;
     int chosen_option = 1;
@@ -127,7 +140,7 @@ int GetOption(std::pair<int, int>& coords, int num_of_options) {
                     mvaddch(cursor_pos_y, cursor_pos_x, '>'); // draw new cursor
                 }
                 break;
-            case 012: // enter pressed
+            case ENTER_KEY:
                 return chosen_option;
             default: // unknown
                 break;
@@ -135,19 +148,49 @@ int GetOption(std::pair<int, int>& coords, int num_of_options) {
     }
 }
 
-std::string PrintInputMenu(Terminal &terminal, InputMenu &input_menu) {
+std::pair<int, int>
+PrintInputMenu(Terminal &terminal, InputMenu &input_menu) { // to be reworked, if multiple input menus added
     clear();
-    int pos_x = terminal.width / 2;
-    int pos_y = (terminal.height - 10) / 2; // 5 for header offset from menu block
-    mvprintw(pos_y, pos_x - input_menu.header.length() / 2, "%s", input_menu.header.c_str());
-    mvaddch(pos_y + 2, pos_x, '>');
+    int pos_x = (terminal.width - input_menu.width) / 2;
+    int pos_y = (terminal.height - input_menu.height) / 2 - input_menu.header_offset;
+    mvprintw(pos_y, pos_x - (input_menu.header.length() - input_menu.width) / 2, "%s", input_menu.header.c_str());
+    for (int i = 0; i < input_menu.height; ++i) {
+        mvprintw(pos_y + i + input_menu.header_offset, pos_x, "%s", input_menu.input_lines[i].c_str());
+    }
     refresh();
-    char input[100];
-    echo();
-    getstr(input);
-    noecho();
-    std::string in(input);
-    return in;
+    pos_y += input_menu.header_offset;  // Made for one and only input menu directly,
+    pos_x += 2;                         // values may be wrong for other menus
+    return std::make_pair(pos_y, pos_x);
+}
+
+std::string GetInputFromInputMenu(std::pair<int, int> &coords) {
+    int pos_y = coords.first;
+    int pos_x = coords.second;
+    curs_set(1); // Show cursor
+    std::string input;
+    while (true) {
+        move(pos_y, pos_x);
+        int a = getch();
+        if (a == ENTER_KEY) { // Enter pressed
+            break;
+        } else if (a == KEY_BACKSPACE) { // Delete char, if possible
+            if (input.empty()) {
+                continue;
+            }
+            --pos_x;
+            mvaddch(pos_y, pos_x, ' ');
+            input.pop_back();
+        } else { // Add char, if possible
+            if (input.length() >= 6) {
+                continue;
+            }
+            mvaddch(pos_y, pos_x, a);
+            ++pos_x;
+            input += (char) a;
+        }
+    }
+    curs_set(0); // Hide cursor
+    return input;
 }
 
 void PrintFrame(Terminal &terminal, std::vector<std::vector<u_char>> &matrix) {

@@ -4,12 +4,17 @@
 #include "string"
 #include "ncurses.h"
 
+#define ENTER_KEY 012 // default ncurses KEY_ENTER seems to be another button
+
+//TODO For now, normal menus and input ones have very similar interface of creation and printing. For rework in further updates
+
 class Menu {
 public:
     void Initialize();
 
     int up_bottom_pad;
     int left_right_pad;
+    int header_offset;
     int height;
     int width;
     std::string header;
@@ -32,8 +37,11 @@ class InputMenu {
 public:
     InputMenu();
 
+    int height;
+    int width;
+    int header_offset;
     std::string header;
-    std::string input;
+    std::vector<std::string> input_lines;
 };
 
 class GUI {
@@ -59,7 +67,9 @@ std::pair<int, int> PrintMenu(Terminal &terminal, Menu &menu);
 
 int GetOption(std::pair<int, int> &coords, int num_of_options);
 
-std::string PrintInputMenu(Terminal &terminal, InputMenu &input_menu);
+std::pair<int, int> PrintInputMenu(Terminal &terminal, InputMenu &input_menu);
+
+std::string GetInputFromInputMenu(std::pair<int, int> &coords);
 
 void PrintFrame(Terminal &terminal, std::vector<std::vector<u_char>> &matrix);
 
