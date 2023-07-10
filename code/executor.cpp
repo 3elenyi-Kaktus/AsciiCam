@@ -3,7 +3,276 @@
 #include "thread"
 #include "string"
 
+void RedirectOutputStreams() {
+    std::fstream file;
+    file.open("cout_cerr.txt", std::ios::out);
+
+    // Get the streambuffer of the file
+    std::streambuf *stream_buffer_file = file.rdbuf();
+
+    // Redirect cout/cerr to file
+    std::cout.rdbuf(stream_buffer_file);
+    std::cerr.rdbuf(stream_buffer_file);
+}
+
+void EnterVideoChat(int option, Terminal &terminal, WebCamera &camera, GUI& interface, Logger& logger) {
+    Client client{};
+    if (client.Connect(logger) < 0) {
+        return;
+    }
+    if (option == 1) {  // host
+        char pass_code[10];
+        client.GetMessage(logger); // get passcode from server
+        sscanf(client.recv_buf, "%s", pass_code);
+        logger << "Got passcode from server: " << pass_code << "\n";
+
+        client.GetMessage(logger); // get confirmation from server that peer connected
+        logger << "Connection with peer established\n";
+    } else {            // client
+        while (true) {
+            auto coords = PrintInputMenu(terminal, interface.passcode_enter);
+            std::string input = GetInputFromInputMenu(coords);
+            logger << "Entered passcode: " << input << "\n";
+            snprintf(client.send_buf, sizeof(client.send_buf), "%s", input.c_str());
+            client.SendMessage(logger); // send entered passcode to server for confirmation
+
+            client.GetMessage(logger); // get server response
+            int accepted;
+            sscanf(client.recv_buf, "%d", &accepted);
+            if (accepted) {
+                logger << "Passcode accepted\n"
+                          "Connection with peer established\n";
+                break;
+            }
+            logger << "Passcode denied\n";
+        }
+    }
+
+
+    ClearScreen();
+
+
+    int height = terminal.height;
+    int width = terminal.width - 4;
+    int companion_height, companion_width;
+    int companion_new_height, companion_new_width;
+    int other_side_has_camera;
+
+    logger << "Terminal height x width: " << height << "x" << width << "\n";
+    logger << "Camera is " << ((camera.is_initialized) ? "" : "not ") << "initialized\n";
+    snprintf(client.send_buf, sizeof(client.send_buf), "%d %d %d", height, width, camera.is_initialized);
+    client.SendMessage(logger); // send terminal size and camera availability info to peer
+
+    client.GetMessage(logger); // get terminal size and camera availability info from peer
+    sscanf(client.recv_buf, "%d %d %d", &companion_height, &companion_width, &other_side_has_camera);
+    logger << "Got following companion's height x width: " << companion_height << "x" << companion_width
+           << "\n";
+    logger << "Companion's camera is " << ((other_side_has_camera) ? "" : "not ") << "initialized\n";
+    if (camera.is_initialized) { // calculate to which size frames should be transformed before sending to peer
+        camera.GetNewFrame(logger);
+        std::pair<int, int> ret_size = camera.GetFittedFrameSize(companion_height, companion_width);
+        ret_size = ConvertSizeToSymb(ret_size);
+        companion_new_height = ret_size.first;
+        companion_new_width = ret_size.second;
+        logger << "Companion's frame resulting size is height x width: " << companion_new_height << "x"
+               << companion_new_width << "\n";
+    } else { // default parameters (for rework in future)
+        companion_new_height = 10;
+        companion_new_width = 10;
+    }
+    snprintf(client.send_buf, sizeof(client.send_buf), "%d %d", companion_new_height, companion_new_width);
+    client.SendMessage(logger); // send resulting size to peer
+
+    client.GetMessage(logger); // get resulting size from peer
+    sscanf(client.recv_buf, "%d %d", &height, &width);
+    logger << "Got following frame resulting height x width: " << height << "x" << width << "\n";
+
+    // Enter get/send state, in which in 2 threads:
+    // 1. Get frame, Convert frame, Send frame
+    // 2. Get other persons frame, Print it
+    // Threads are activated only if their existence is appropriate (? not anymore)
+
+    std::mutex mutex;
+
+    std::thread receiver = std::thread([&]() {
+        logger << "Created receiving thread\n";
+        while (true) {
+            mutex.lock();
+            timeout(1); // wait for keypress
+            if (getch() != ERR) {
+                mutex.unlock();
+                break;
+            }
+            mutex.unlock();
+            if (client.GetMessage(logger) < 0) {
+                break;
+            }
+            std::vector<std::vector<u_char>> matrix(height, std::vector<u_char>(width));
+            for (int i = 0; i < height; ++i) {
+                for (int j = 0; j < width; ++j) {
+                    matrix[i][j] = client.recv_buf[i * width + j];
+                }
+            }
+            mutex.lock();
+            PrintFrame(terminal, matrix);
+            mutex.unlock();
+        }
+    });
+
+    std::thread sender = std::thread([&]() {
+        logger << "Created sending thread\n";
+        std::pair<int, int> size = std::make_pair(companion_new_height, companion_new_width);
+        size = ConvertSizeToPx(size);
+        while (true) {
+            mutex.lock();
+            timeout(1); // wait for keypress
+            if (getch() != ERR) {
+                mutex.unlock();
+                break;
+            }
+            mutex.unlock();
+            if (camera.is_initialized) {
+                camera.GetNewFrame(logger);
+                camera.PreprocessFrame(size);
+                std::vector<std::vector<u_char>> ascii_matrix = ConvertFrameToASCII(camera.GetFrame());
+                for (int i = 0; i < ascii_matrix.size(); ++i) {
+                    for (int j = 0; j < ascii_matrix[0].size(); ++j) {
+                        client.send_buf[i * ascii_matrix[0].size() + j] = ascii_matrix[i][j];
+                    }
+                }
+            } else {
+                std::string msg = "here could be frame";
+                for (int i = 0; i < msg.length(); ++i) {
+                    client.send_buf[i] = msg[i];
+                }
+                for (int i = msg.length(); i < BUF_SIZE; ++i) {
+                    client.send_buf[i] = ' ';
+                }
+            }
+            if (client.SendMessage(logger) < 0) {
+                break;
+            }
+        }
+    });
+
+    if (sender.joinable()) {
+        sender.join();
+    }
+    if (receiver.joinable()) {
+        receiver.join();
+    }
+
+    client.TerminateConnection(logger);
+}
+
+void EnterChat(int option, Terminal &terminal, GUI& interface, Logger& logger) {
+    Client client{};
+    if (client.Connect(logger) < 0) {
+        return;
+    }
+    if (option == 1) {  // host
+        char pass_code[10];
+        client.GetMessage(logger); // get passcode from server
+        sscanf(client.recv_buf, "%s", pass_code);
+        logger << "Got passcode from server: " << pass_code << "\n";
+
+        client.GetMessage(logger); // get confirmation from server that peer connected
+        logger << "Connection with peer established\n";
+    } else {            // client
+        while (true) {
+            auto coords = PrintInputMenu(terminal, interface.passcode_enter);
+            std::string input = GetInputFromInputMenu(coords);
+            logger << "Entered passcode: " << input << "\n";
+            snprintf(client.send_buf, sizeof(client.send_buf), "%s", input.c_str());
+            client.SendMessage(logger); // send entered passcode to server for confirmation
+
+            client.GetMessage(logger); // get server response
+            int accepted;
+            sscanf(client.recv_buf, "%d", &accepted);
+            if (accepted) {
+                logger << "Passcode accepted\n"
+                          "Connection with peer established\n";
+                break;
+            }
+            logger << "Passcode denied\n";
+        }
+    }
+
+    ClearScreen();
+
+    echo();
+    curs_set(1);
+    std::atomic_int pos_y = 0;
+    std::atomic_int pos_x = 0;
+    std::string my_msg_pref = "You > ";
+    std::string serv_msg_pref = "Server > ";
+    std::string ending_message = "The other person terminated chat.";
+    std::atomic_bool chat_is_closed = false;
+    std::mutex mtx;
+
+    std::thread receiver([&]() {
+        std::string message;
+        int temp_y, temp_x;
+        while (!chat_is_closed) {
+            client.GetMessage(logger);
+            message = std::string(client.recv_buf);
+            logger << "Got msg from server: " << message << "\n";
+            if (message == "quit") {
+                chat_is_closed = true;
+                message = ending_message;
+            }
+
+            mtx.lock();
+            getyx(stdscr, temp_y, temp_x);
+            mvprintw(pos_y, 0, "%s%s", serv_msg_pref.c_str(), message.c_str());
+            getyx(stdscr, pos_y, pos_x);
+            ++pos_y;
+            pos_x = 0;
+            move(temp_y, temp_x);
+            refresh();
+            mtx.unlock();
+        }
+    });
+
+    std::thread sender([&]() {
+        while (!chat_is_closed) {
+            mtx.lock();
+            move(terminal.height - 2, 1);
+            getstr(client.send_buf);
+            logger << "You entered: " << client.send_buf << "\n";
+            mvprintw(pos_y, 0, "%s%s", my_msg_pref.c_str(), client.send_buf);
+            getyx(stdscr, pos_y, pos_x);
+            ++pos_y;
+            refresh();
+            mtx.unlock();
+
+            if (*client.send_buf == 'q') {
+                chat_is_closed = true;
+            }
+            logger << "Sending message: " << client.send_buf << "\n";
+            client.SendMessage(logger);
+        }
+    });
+    sender.join();
+    receiver.join();
+    client.TerminateConnection(logger);
+}
+
 void SelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
+    camera.GetNewFrame(logger);
+    std::pair<int, int> ret_size = camera.GetFittedFrameSize(terminal.height, terminal.width);
+    while (true) {
+        timeout(1); // wait for keypress
+        if (getch() != ERR) {
+            break;
+        }
+        camera.GetNewFrame(logger);
+        camera.PreprocessFrame(ret_size);
+        std::vector<std::vector<u_char>> ascii_matrix = ConvertFrameToASCII(camera.GetFrame());
+        PrintFrame(terminal, ascii_matrix);
+    }
+}
+void DebSelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
     camera.GetNewFrame(logger);
     std::pair<int, int> ret_size = camera.GetFittedFrameSize(terminal.height, terminal.width);
     while (true) {
@@ -39,16 +308,9 @@ void SelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
     }
 }
 
+
 void Execute() {
-    std::fstream file;
-    file.open("cout_cerr.txt", std::ios::out);
-
-    // Get the streambuffer of the file
-    std::streambuf *stream_buffer_file = file.rdbuf();
-
-    // Redirect cout/cerr to file
-    std::cout.rdbuf(stream_buffer_file);
-    std::cerr.rdbuf(stream_buffer_file);
+    RedirectOutputStreams();
 
     Logger logger;
     logger << "Start of AsciiCam\n";
@@ -65,246 +327,19 @@ void Execute() {
 
             if (option == 3) {
                 continue;
-            }
-            Client client{};
-            if (client.Connect(logger) < 0) {
-                break;
-            }
-            if (option == 1) { // host
-                int pass_code;
-                client.GetMessage(logger);
-                sscanf(client.recv_buf, "%d", &pass_code);
-                logger << "Got passcode from server: " << pass_code << "\n";
-
-                client.GetMessage(logger);
-                logger << "Connection with peer established\n";
-            } else { // client
-                while (true) {
-                    coords = PrintInputMenu(terminal, interface.passcode_enter);
-                    std::string input = GetInputFromInputMenu(coords);
-                    logger << "Entered passcode: " << input << "\n";
-                    for (int i = 0; i < input.length(); ++i) {
-                        client.send_buf[i] = input[i];
-                    }
-                    client.send_buf[input.length()] = '\0';
-                    client.SendMessage(logger);
-                    client.GetMessage(logger);
-                    int accepted;
-                    sscanf(client.recv_buf, "%d", &accepted);
-                    if (accepted) {
-                        logger << "Passcode accepted\n";
-                        break;
-                    }
-                    logger << "Passcode denied\n";
-                }
-                logger << "Connection with peer established\n";
-            }
-
-
-            ClearScreen();
-
-
-            int height = terminal.height;
-            int width = terminal.width - 4;
-            int companion_height, companion_width, companion_new_height, companion_new_width;
-            bool other_side_has_camera;
-
-            logger << "Terminal height x width: " << height << "x" << width << "\n";
-            logger << "Camera is " << ((camera.is_initialized) ? "" : "not ") << "initialized\n";
-            snprintf(client.send_buf, sizeof(client.send_buf), "%d %d %d", height, width, camera.is_initialized);
-            client.SendMessage(logger);
-            client.GetMessage(logger);
-
-            sscanf(client.recv_buf, "%d %d %d", &companion_height, &companion_width, &other_side_has_camera);
-//            char *end;
-//            char *end2;
-//            companion_height = strtol(client.recv_buf, &end, 10);
-//            companion_width = strtol(end, &end2, 10);
-//            other_side_has_camera = strtol(end2, &end, 10);
-            logger << "Got following companion's height x width: " << companion_height << "x" << companion_width
-                   << "\n";
-            logger << "Companion's camera is " << ((other_side_has_camera) ? "" : "not ") << "initialized\n";
-            if (camera.is_initialized) {
-                camera.GetNewFrame(logger);
-                std::pair<int, int> ret_size = camera.GetFittedFrameSize(companion_height, companion_width);
-                ret_size = ConvertSizeToSymb(ret_size);
-                companion_new_height = ret_size.first;
-                companion_new_width = ret_size.second;
-                logger << "Companion's frame resulting size is height x width: " << companion_new_height << "x"
-                       << companion_new_width << "\n";
             } else {
-                companion_new_height = 10;
-                companion_new_width = 10;
+                EnterVideoChat(option, terminal, camera, interface, logger);
             }
-            snprintf(client.send_buf, sizeof(client.send_buf), "%d %d", companion_new_height, companion_new_width);
-            client.SendMessage(logger);
-            client.GetMessage(logger);
+        } else if (option == 2) { // unused
+            coords = PrintMenu(terminal, interface.CS_choice);
+            option = GetOption(coords, interface.CS_choice.num_of_options);
 
-            sscanf(client.recv_buf, "%d %d", &height, &width);
-//            height = strtol(client.recv_buf, &end, 10);
-//            width = strtol(end, &end2, 10);
-            logger << "Got following frame resulting height x width: " << height << "x" << width << "\n";
-            // Enter get/send state, in which in 2 threads:
-            // 1. Get frame, Convert frame, Send frame
-            // 2. Get other persons frame, Print it
-            // Threads are activated only if their existence is appropriate (? not anymore)
-            std::mutex mutex;
-
-            std::thread receiver;
-//            if (other_side_has_camera) {
-            logger << "Created receiving thread\n";
-            receiver = std::thread([&]() {
-                int n = 0;
-                while (true) {
-                    mutex.lock();
-                    timeout(1); // wait for keypress
-                    if (getch() != ERR) {
-                        mutex.unlock();
-                        break;
-                    }
-                    mutex.unlock();
-                    if (client.GetMessage(logger) < 0) {
-                        break;
-                    }
-                    std::vector<std::vector<u_char>> matrix(height, std::vector<u_char>(width));
-//                        logger << client.recv_buf << "\n\n";
-                    for (int i = 0; i < height; ++i) {
-                        for (int j = 0; j < width; ++j) {
-                            matrix[i][j] = client.recv_buf[i * width + j];
-                        }
-                    }
-                    mutex.lock();
-                    PrintFrame(terminal, matrix);
-                    mutex.unlock();
-                    ++n;
-                }
-            });
-//            }
-            std::thread sender;
-//            if (camera.is_initialized) {
-            logger << "Created sending thread\n";
-            sender = std::thread([&]() {
-                int n = 0;
-                std::pair<int, int> size = std::make_pair(companion_new_height, companion_new_width);
-                size = ConvertSizeToPx(size);
-                while (true) {
-                    mutex.lock();
-                    timeout(1); // wait for keypress
-                    if (getch() != ERR) {
-                        mutex.unlock();
-                        break;
-                    }
-                    mutex.unlock();
-                    if (camera.is_initialized) {
-                        camera.GetNewFrame(logger);
-                        camera.PreprocessFrame(size);
-                        std::vector<std::vector<u_char>> ascii_matrix = ConvertFrameToASCII(camera.GetFrame());
-                        for (int i = 0; i < ascii_matrix.size(); ++i) {
-                            for (int j = 0; j < ascii_matrix[0].size(); ++j) {
-                                client.send_buf[i * ascii_matrix[0].size() + j] = ascii_matrix[i][j];
-                            }
-                        }
-                    } else {
-                        std::string msg = "here could be frame n." + std::to_string(n);
-                        for (int i = 0; i < msg.length(); ++i) {
-                            client.send_buf[i] = msg[i];
-                        }
-                        for (int i = msg.length(); i < BUF_SIZE; ++i) {
-                            client.send_buf[i] = ' ';
-                        }
-                    }
-                    if (client.SendMessage(logger) < 0) {
-                        break;
-                    }
-                    ++n;
-                }
-            });
-//            }
-
-            if (sender.joinable()) {
-                sender.join();
+            if (option == 3) {
+                continue;
+            } else {
+                EnterChat(option, terminal, interface, logger);
             }
-            if (receiver.joinable()) {
-                receiver.join();
-            }
-
-            client.TerminateConnection(logger);
-
-        } else if (option == 2) {
-//            option = PrintMenu(terminal, interface.CS_choice);
-            ClearScreen();
-
-            unsigned int available_threads = std::thread::hardware_concurrency();
-            logger << available_threads << " concurrent threads are supported.\n";
-
-            echo();
-            curs_set(1);
-            char a[100];
-            int cur_height = 0;
-            int cur_width = 0;
-            std::string my_message = "You > ";
-            std::string ending_message = "The other person terminated chat.";
-
-
-            Client client{};
-            if (client.Connect(logger)) {
-                break;
-            }
-
-            logger << "Connected to host\n";
-
-            std::string server_message = "Server > ";
-            std::atomic_bool chat_is_closed = false;
-
-            std::thread receiver([&]() {
-                while (!chat_is_closed) {
-                    client.GetMessage(logger);
-
-                    for (int i = 0; i < 80; ++i) {
-                        a[i] = client.send_buf[i];
-                    }
-                    logger << "Got msg from server: " << a << "\n";
-                    if (*a == 'q') {
-                        chat_is_closed = true;
-                        strcpy(a, ending_message.c_str());
-                    }
-
-                    int temp_height, temp_width;
-                    getyx(stdscr, temp_height, temp_width);
-                    mvprintw(cur_height, 0, "%s%s", server_message.c_str(), a);
-                    getyx(stdscr, cur_height, cur_width);
-                    move(temp_height, temp_width);
-                    refresh();
-                    ++cur_height;
-                }
-            });
-
-            std::thread sender([&]() {
-                while (!chat_is_closed) {
-                    move(terminal.height - 2, 1);
-                    getstr(a);
-                    logger << "You entered: " << a << "\n";
-                    mvprintw(cur_height, 0, "%s%s", my_message.c_str(), a);
-                    refresh();
-                    getyx(stdscr, cur_height, cur_width);
-                    ++cur_height;
-
-                    if (*a == 'q') {
-                        chat_is_closed = true;
-                    }
-
-                    for (int i = 0; i < 100; ++i) {
-                        client.send_buf[i] = a[i];
-                    }
-                    logger << "sending message: " << client.send_buf << "\n";
-                    client.SendMessage(logger);
-                }
-            });
-            sender.join();
-            client.TerminateConnection(logger);
-            receiver.join();
-
-        } else if (option == 3) {   // unused, for parameters
+        } else if (option == 3) { // unused, for parameters
             SelfVideo(terminal, camera, logger);
         } else if (option == 4) { // exit from application
             break;

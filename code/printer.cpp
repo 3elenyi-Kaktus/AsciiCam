@@ -97,11 +97,16 @@ Terminal::Terminal() {
     getmaxyx(stdscr, height, width);
 }
 
+void Terminal::UpdateSize() {
+    getmaxyx(stdscr, height, width);
+}
+
 Terminal::~Terminal() {
     endwin();
 }
 
 std::pair<int, int> PrintMenu(Terminal &terminal, Menu &menu) { // need to add terminal size compatibility
+    terminal.UpdateSize();
     clear();
     int pos_x = (terminal.width - menu.width) / 2;
     int pos_y = (terminal.height - menu.height) / 2 - menu.header_offset;
@@ -150,6 +155,7 @@ int GetOption(std::pair<int, int> &coords, int num_of_options) {
 
 std::pair<int, int>
 PrintInputMenu(Terminal &terminal, InputMenu &input_menu) { // to be reworked, if multiple input menus added
+    terminal.UpdateSize();
     clear();
     int pos_x = (terminal.width - input_menu.width) / 2;
     int pos_y = (terminal.height - input_menu.height) / 2 - input_menu.header_offset;

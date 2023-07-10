@@ -7,6 +7,7 @@
 #define ENTER_KEY 012 // default ncurses KEY_ENTER seems to be another button
 
 //TODO For now, normal menus and input ones have very similar interface of creation and printing. For rework in further updates
+//TODO Partially solved cases with dynamic terminal size changes
 
 class Menu {
 public:
@@ -55,6 +56,8 @@ public:
 class Terminal {
 public:
     Terminal();
+
+    void UpdateSize();
 
     ~Terminal();
 
