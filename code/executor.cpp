@@ -58,9 +58,11 @@ void Execute() {
     WebCamera camera(logger);
     while (true) {
         //mvprintw(terminal.ROWS - 1, 0, "The number of rows - %d, columns - %d\n", terminal.ROWS, terminal.COLS);
-        int option = PrintMenu(terminal, interface.menu);
+        auto coords = PrintMenu(terminal, interface.menu);
+        int option = GetOption(coords, interface.menu.num_of_options);
         if (option == 1) {
-            option = PrintMenu(terminal, interface.CS_choice);
+            coords = PrintMenu(terminal, interface.CS_choice);
+            option = GetOption(coords, interface.CS_choice.num_of_options);
             Client client{};
             if (client.Connect(logger) < 0) {
                 break;

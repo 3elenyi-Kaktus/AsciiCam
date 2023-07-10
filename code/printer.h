@@ -6,10 +6,15 @@
 
 class Menu {
 public:
+    void Initialize();
+
+    int up_bottom_pad;
+    int left_right_pad;
     int height;
     int width;
     std::string header;
-    std::vector<std::string> window;
+    std::vector<std::string> options;
+    std::vector<std::string> print_lines;
     int num_of_options;
 };
 
@@ -50,7 +55,9 @@ public:
 };
 
 
-int PrintMenu(Terminal &terminal, Menu &menu);
+std::pair<int, int> PrintMenu(Terminal &terminal, Menu &menu);
+
+int GetOption(std::pair<int, int> &coords, int num_of_options);
 
 std::string PrintInputMenu(Terminal &terminal, InputMenu &input_menu);
 
