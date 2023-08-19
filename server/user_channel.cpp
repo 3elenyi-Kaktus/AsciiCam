@@ -39,11 +39,15 @@ int UserChannel::Create(int sock_fd, Logger &logger) {
         char *end;
         GetMessage(acceptor_fd, acc_buffer, logger);
         if (strtol(acc_buffer, &end, 10) == random) {
+            std::cout << "Acceptor sent valid password\n";
+            logger << "Acceptor sent valid password\n";
             acc_buffer[0] = '1';
             acc_buffer[1] = '\0';
             SendMessage(acceptor_fd, acc_buffer, logger);
             break;
         }
+        std::cout << "Acceptor sent invalid password\n";
+        logger << "Acceptor sent invalid password\n";
         acc_buffer[0] = '0';
         acc_buffer[1] = '\0';
         SendMessage(acceptor_fd, acc_buffer, logger);
@@ -60,6 +64,7 @@ int UserChannel::GetMessage(int sockfd, char *buffer, Logger &logger) {
         std::cout << "ERROR on reading to socket\n";
         return -1;
     }
+//    std::cout << "Got message: " << buffer << "\n";
     return 0;
 }
 
@@ -70,6 +75,7 @@ int UserChannel::SendMessage(int sockfd, char *buffer, Logger &logger) {
         std::cout << "ERROR on sending to socket\n";
         return -1;
     }
+//    std::cout << "Sent message: " << buffer << "\n";
     return 0;
 }
 

@@ -169,7 +169,7 @@ PrintInputMenu(Terminal &terminal, InputMenu &input_menu) { // to be reworked, i
     return std::make_pair(pos_y, pos_x);
 }
 
-std::string GetInputFromInputMenu(std::pair<int, int> &coords) {
+std::string GetInputFromInputMenu(std::pair<int, int> &coords) { // is made only for password check. To be reworked for overall purposes
     int pos_y = coords.first;
     int pos_x = coords.second;
     curs_set(1); // Show cursor

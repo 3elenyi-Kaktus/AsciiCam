@@ -1,21 +1,10 @@
 #include "executor.h"
+#include "termios.h"
 
 #include "thread"
 #include "string"
 
-void RedirectOutputStreams() {
-    std::fstream file;
-    file.open("cout_cerr.txt", std::ios::out);
-
-    // Get the streambuffer of the file
-    std::streambuf *stream_buffer_file = file.rdbuf();
-
-    // Redirect cout/cerr to file
-    std::cout.rdbuf(stream_buffer_file);
-    std::cerr.rdbuf(stream_buffer_file);
-}
-
-void EnterVideoChat(int option, Terminal &terminal, WebCamera &camera, GUI& interface, Logger& logger) {
+void EnterVideoChat(int option, Terminal &terminal, WebCamera &camera, GUI &interface, Logger &logger) {
     Client client{};
     if (client.Connect(logger) < 0) {
         return;
@@ -165,7 +154,7 @@ void EnterVideoChat(int option, Terminal &terminal, WebCamera &camera, GUI& inte
     client.TerminateConnection(logger);
 }
 
-void EnterChat(int option, Terminal &terminal, GUI& interface, Logger& logger) {
+void EnterChat(int option, Terminal &terminal, GUI &interface, Logger &logger) {
     Client client{};
     if (client.Connect(logger) < 0) {
         return;
@@ -200,19 +189,25 @@ void EnterChat(int option, Terminal &terminal, GUI& interface, Logger& logger) {
 
     ClearScreen();
 
-    echo();
     curs_set(1);
-    std::atomic_int pos_y = 0;
-    std::atomic_int pos_x = 0;
+    int pos_y = terminal.height - 2;
+    int pos_x = 1;
+    int msg_pos_y = 1;
+    int msg_pos_x = 1;
     std::string my_msg_pref = "You > ";
     std::string serv_msg_pref = "Server > ";
     std::string ending_message = "The other person terminated chat.";
     std::atomic_bool chat_is_closed = false;
     std::mutex mtx;
 
+    struct termios orig_termios{};  // Save canonical terminal mode and switch to raw
+    tcgetattr(STDIN_FILENO, &orig_termios);
+    struct termios raw = orig_termios;
+    raw.c_lflag &= ~(ECHO | ICANON);
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+
     std::thread receiver([&]() {
         std::string message;
-        int temp_y, temp_x;
         while (!chat_is_closed) {
             client.GetMessage(logger);
             message = std::string(client.recv_buf);
@@ -223,12 +218,11 @@ void EnterChat(int option, Terminal &terminal, GUI& interface, Logger& logger) {
             }
 
             mtx.lock();
-            getyx(stdscr, temp_y, temp_x);
-            mvprintw(pos_y, 0, "%s%s", serv_msg_pref.c_str(), message.c_str());
-            getyx(stdscr, pos_y, pos_x);
-            ++pos_y;
-            pos_x = 0;
-            move(temp_y, temp_x);
+            mvprintw(msg_pos_y, msg_pos_x, "%s%s", serv_msg_pref.c_str(), message.c_str());
+            getyx(stdscr, msg_pos_y, msg_pos_x);
+            ++msg_pos_y;
+            msg_pos_x = 1;
+            move(pos_y, pos_x);
             refresh();
             mtx.unlock();
         }
@@ -236,19 +230,58 @@ void EnterChat(int option, Terminal &terminal, GUI& interface, Logger& logger) {
 
     std::thread sender([&]() {
         while (!chat_is_closed) {
+            std::string input;
+            char c;
+            while (true) {
+                move(pos_y, pos_x);
+                refresh();
+                if (read(STDIN_FILENO, &c, 1) != 1) {
+                    break;
+                }
+                if (iscntrl(c) && c != 127) { // (c == 10 || c == 13) for Enter keycode check
+                    logger << "Control letter entered\n";
+                    break;
+                }
+                logger << "Letter entered: " << c << " " << (int) c << "\n";
+                if (c == 127) { // Delete char, if possible
+                    if (input.empty()) {
+                        continue;
+                    }
+                    mtx.lock();
+                    --pos_x;
+                    mvaddch(pos_y, pos_x, ' ');
+                    mtx.unlock();
+                    input.pop_back();
+                } else { // Add char, if possible
+                    mtx.lock();
+                    mvaddch(pos_y, pos_x, c);
+                    ++pos_x;
+                    mtx.unlock();
+                    input += c;
+                }
+            }
+            logger << "Message entered: " << input << "\n";
+            if (input == "quit") {
+                chat_is_closed = true;
+            }
+
             mtx.lock();
-            move(terminal.height - 2, 1);
-            getstr(client.send_buf);
-            logger << "You entered: " << client.send_buf << "\n";
-            mvprintw(pos_y, 0, "%s%s", my_msg_pref.c_str(), client.send_buf);
-            getyx(stdscr, pos_y, pos_x);
-            ++pos_y;
+            pos_y = terminal.height - 2;
+            pos_x = 1;
+            move(pos_y, pos_x);
+            for (int i = 0; i < input.length(); ++i) {
+                addch(' ');
+            }
+
+            mvprintw(msg_pos_y, msg_pos_x, "%s%s", my_msg_pref.c_str(), input.c_str());
+            getyx(stdscr, msg_pos_y, msg_pos_x);
+            ++msg_pos_y;
+            msg_pos_x = 1;
+            move(pos_y, pos_x);
             refresh();
             mtx.unlock();
 
-            if (*client.send_buf == 'q') {
-                chat_is_closed = true;
-            }
+            snprintf(client.send_buf, sizeof(client.send_buf), "%s", input.c_str());
             logger << "Sending message: " << client.send_buf << "\n";
             client.SendMessage(logger);
         }
@@ -256,6 +289,8 @@ void EnterChat(int option, Terminal &terminal, GUI& interface, Logger& logger) {
     sender.join();
     receiver.join();
     client.TerminateConnection(logger);
+    curs_set(0);
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios); // Return original terminal settings
 }
 
 void SelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
@@ -272,6 +307,7 @@ void SelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
         PrintFrame(terminal, ascii_matrix);
     }
 }
+
 void DebSelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
     camera.GetNewFrame(logger);
     std::pair<int, int> ret_size = camera.GetFittedFrameSize(terminal.height, terminal.width);
@@ -310,7 +346,15 @@ void DebSelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
 
 
 void Execute() {
-    RedirectOutputStreams();
+    std::ofstream file(
+            "./cout_cerr.txt"); // <---- somehow, if extracted into function, causes SIGSEGV 139 on call to std::cout
+
+    std::streambuf *old_cout_buf = std::cout.rdbuf(); // save cout/cerr old streambufs
+    std::streambuf *old_cerr_buf = std::cerr.rdbuf();
+
+    std::cout.rdbuf(file.rdbuf()); // Redirect cout/cerr to file
+    std::cerr.rdbuf(file.rdbuf()); // <----
+
 
     Logger logger;
     logger << "Start of AsciiCam\n";
@@ -342,8 +386,12 @@ void Execute() {
         } else if (option == 3) { // unused, for parameters
             SelfVideo(terminal, camera, logger);
         } else if (option == 4) { // exit from application
+            logger << "Exiting from the application\n";
             break;
         } else if (option == 5) { // for debug
         }
     }
+
+    std::cout.rdbuf(old_cout_buf); // Restore cout/cerr streambufs before exit
+    std::cerr.rdbuf(old_cerr_buf);
 }
