@@ -19,5 +19,7 @@ add_executable(AsciiCam
         logger.h
         logger.cpp
         client.cpp
-        client.h)
+        client.h
+        scroll_object.cpp
+        scroll_object.h chat.cpp chat.h)
 target_link_libraries(AsciiCam ${OpenCV_LIBS} -lncurses)

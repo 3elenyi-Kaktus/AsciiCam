@@ -1,5 +1,7 @@
 #include "executor.h"
 #include "termios.h"
+#include "scroll_object.h"
+#include "chat.h"
 
 #include "thread"
 #include "string"
@@ -389,6 +391,27 @@ void Execute() {
             logger << "Exiting from the application\n";
             break;
         } else if (option == 5) { // for debug
+            ClearScreen();
+
+            Chat chat(terminal.height - 2, 0, terminal.width, terminal.height);
+
+            bool is_chatting = true;
+            while (is_chatting) {
+                int c;
+                bool is_typing = true;
+                while (is_typing) {
+                    c = chat.getChar(logger);
+                    is_typing = chat.processInput(c, logger);
+                }
+                int control_code = chat.processMessage(logger);
+                if (control_code == -1) {
+                    is_chatting = false;
+                }
+                if (chat.sendMessage(logger) < 0) {
+                    break;
+                }
+                chat.updateChat();
+            }
         }
     }
 
