@@ -1,6 +1,7 @@
 #include "chat.h"
 
-Chat::Chat(int pos_y, int pos_x, int width, int height) : scr(MANUAL, 5, 10), typing_pos({pos_x, pos_y}), chat_size({width, height}) {
+Chat::Chat(int pos_y, int pos_x, int width, int height) : scr(MANUAL, 5, 10), typing_pos({pos_x, pos_y}),
+                                                          chat_size({width, height}) {
     keypad(stdscr, false); // enter raw mode for escape sequences
     curs_set(1); // show cursor
 
@@ -105,15 +106,19 @@ void Chat::clearMessage() {
 int Chat::processMessage(Logger &logger) {
     logger << "Message entered: " << message << "\n";
     if (message == "quit") {
+        logger << "User quit from chat\n";
         return -1;
     }
+    addMessageToHistory(logger);
     return 0;
 }
 
-int Chat::sendMessage(Logger &logger) {
+void Chat::addMessageToHistory(Logger &logger) {
     scr.addLine(message, logger);
-    clearMessage();
-    return 0;
+}
+
+void Chat::addMessageToHistory(std::string &msg, Logger &logger) {
+    scr.addLine(msg, logger);
 }
 
 void Chat::performScroll(int64_t key, Logger &logger) {
@@ -151,5 +156,3 @@ Chat::~Chat() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios); // return original terminal settings
     keypad(stdscr, true); // restore escape sequences mode to ncurses
 }
-
-

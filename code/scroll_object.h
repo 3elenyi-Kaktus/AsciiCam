@@ -17,13 +17,13 @@ public:
                                                                                                line_length(
                                                                                                        line_length) {};
 
-    void addLine(std::string &str, Logger& logger);
+    void addLine(std::string &str, Logger &logger);
 
     std::deque<std::string> &getVisibleChunk();
 
-    bool scrollDown(Logger& logger);
+    bool scrollDown(Logger &logger);
 
-    bool scrollUp(Logger& logger);
+    bool scrollUp(Logger &logger);
 
 private:
     std::vector<std::string> lines;

@@ -42,5 +42,3 @@ bool ScrollObject::scrollUp(Logger &logger) {
     --position;
     return true;
 }
-
-

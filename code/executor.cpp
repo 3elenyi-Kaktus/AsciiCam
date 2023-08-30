@@ -190,109 +190,54 @@ void EnterChat(int option, Terminal &terminal, GUI &interface, Logger &logger) {
     }
 
     ClearScreen();
+    Chat chat(terminal.height - 2, 0, terminal.width, terminal.height);
 
-    curs_set(1);
-    int pos_y = terminal.height - 2;
-    int pos_x = 1;
-    int msg_pos_y = 1;
-    int msg_pos_x = 1;
-    std::string my_msg_pref = "You > ";
-    std::string serv_msg_pref = "Server > ";
-    std::string ending_message = "The other person terminated chat.";
+
+    const std::string my_msg_pref = "You > ";
+    const std::string serv_msg_pref = "Server > ";
+    const std::string ending_message = "The other person terminated chat.";
     std::atomic_bool chat_is_closed = false;
-    std::mutex mtx;
-
-    struct termios orig_termios{};  // Save canonical terminal mode and switch to raw
-    tcgetattr(STDIN_FILENO, &orig_termios);
-    struct termios raw = orig_termios;
-    raw.c_lflag &= ~(ECHO | ICANON);
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 
     std::thread receiver([&]() {
         std::string message;
         while (!chat_is_closed) {
             client.GetMessage(logger);
             message = std::string(client.recv_buf);
-            logger << "Got msg from server: " << message << "\n";
+            logger << "Got message from server: " << message << "\n";
             if (message == "quit") {
                 chat_is_closed = true;
                 message = ending_message;
             }
-
-            mtx.lock();
-            mvprintw(msg_pos_y, msg_pos_x, "%s%s", serv_msg_pref.c_str(), message.c_str());
-            getyx(stdscr, msg_pos_y, msg_pos_x);
-            ++msg_pos_y;
-            msg_pos_x = 1;
-            move(pos_y, pos_x);
-            refresh();
-            mtx.unlock();
+            message = serv_msg_pref + message;
+            chat.addMessageToHistory(message, logger);
+            chat.updateChat();
         }
     });
 
     std::thread sender([&]() {
         while (!chat_is_closed) {
-            std::string input;
-            char c;
-            while (true) {
-                move(pos_y, pos_x);
-                refresh();
-                if (read(STDIN_FILENO, &c, 1) != 1) {
-                    break;
-                }
-                if (iscntrl(c) && c != 127) { // (c == 10 || c == 13) for Enter keycode check
-                    logger << "Control letter entered\n";
-                    break;
-                }
-                logger << "Letter entered: " << c << " " << (int) c << "\n";
-                if (c == 127) { // Delete char, if possible
-                    if (input.empty()) {
-                        continue;
-                    }
-                    mtx.lock();
-                    --pos_x;
-                    mvaddch(pos_y, pos_x, ' ');
-                    mtx.unlock();
-                    input.pop_back();
-                } else { // Add char, if possible
-                    mtx.lock();
-                    mvaddch(pos_y, pos_x, c);
-                    ++pos_x;
-                    mtx.unlock();
-                    input += c;
-                }
+            int c;
+            bool is_typing = true;
+            while (is_typing) {
+                c = chat.getChar(logger);
+                is_typing = chat.processInput(c, logger);
             }
-            logger << "Message entered: " << input << "\n";
-            if (input == "quit") {
+            int control_code = chat.processMessage(logger);
+            if (control_code == -1) {
                 chat_is_closed = true;
             }
 
-            mtx.lock();
-            pos_y = terminal.height - 2;
-            pos_x = 1;
-            move(pos_y, pos_x);
-            for (int i = 0; i < input.length(); ++i) {
-                addch(' ');
-            }
-
-            mvprintw(msg_pos_y, msg_pos_x, "%s%s", my_msg_pref.c_str(), input.c_str());
-            getyx(stdscr, msg_pos_y, msg_pos_x);
-            ++msg_pos_y;
-            msg_pos_x = 1;
-            move(pos_y, pos_x);
-            refresh();
-            mtx.unlock();
-
-            snprintf(client.send_buf, sizeof(client.send_buf), "%s", input.c_str());
+            snprintf(client.send_buf, sizeof(client.send_buf), "%s", chat.getMessage().c_str());
             logger << "Sending message: " << client.send_buf << "\n";
             client.SendMessage(logger);
+
+            chat.clearMessage();
+            chat.updateChat();
         }
     });
     sender.join();
     receiver.join();
     client.TerminateConnection(logger);
-    curs_set(0);
-    tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios); // Return original terminal settings
 }
 
 void SelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
@@ -406,9 +351,6 @@ void Execute() {
                 int control_code = chat.processMessage(logger);
                 if (control_code == -1) {
                     is_chatting = false;
-                }
-                if (chat.sendMessage(logger) < 0) {
-                    break;
                 }
                 chat.updateChat();
             }

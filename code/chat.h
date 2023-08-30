@@ -35,7 +35,9 @@ public:
 
     int processMessage(Logger &logger);
 
-    int sendMessage(Logger &logger);
+    void addMessageToHistory(Logger &logger);
+
+    void addMessageToHistory(std::string &msg, Logger &logger);
 
     void performScroll(int64_t key, Logger &logger);
 
@@ -45,8 +47,8 @@ public:
 
     ~Chat();
 
-    ScrollObject scr;
 private:
+    ScrollObject scr;
     std::string message;
     Coordinates typing_pos;
     Size chat_size;
