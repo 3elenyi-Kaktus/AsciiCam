@@ -5,31 +5,30 @@
 
 #include "thread"
 #include "string"
+#include "memory"
 
 void EnterVideoChat(int option, Terminal &terminal, WebCamera &camera, GUI &interface, Logger &logger) {
-    Client client{};
-    if (client.Connect(logger) < 0) {
+    Network network({"tech", "chat", "video"});
+    if (network.Connect(logger) < 0) {
         return;
     }
     if (option == 1) {  // host
-        char pass_code[10];
-        client.GetMessage(logger); // get passcode from server
-        sscanf(client.recv_buf, "%s", pass_code);
-        logger << "Got passcode from server: " << pass_code << "\n";
+        std::unique_ptr<std::string> pass_code;
+        network.GetMessage("tech", pass_code, logger); // get passcode from server
+        logger << "Got passcode from server: " << *pass_code << "\n";
 
-        client.GetMessage(logger); // get confirmation from server that peer connected
+        network.GetMessage("tech", pass_code, logger); // get confirmation from server that peer connected
         logger << "Connection with peer established\n";
     } else {            // client
         while (true) {
             auto coords = PrintInputMenu(terminal, interface.passcode_enter);
             std::string input = GetInputFromInputMenu(coords);
             logger << "Entered passcode: " << input << "\n";
-            snprintf(client.send_buf, sizeof(client.send_buf), "%s", input.c_str());
-            client.SendMessage(logger); // send entered passcode to server for confirmation
+            network.SendMessage("tech", input, logger); // send entered passcode to server for confirmation
 
-            client.GetMessage(logger); // get server response
-            int accepted;
-            sscanf(client.recv_buf, "%d", &accepted);
+            std::unique_ptr<std::string> reply;
+            network.GetMessage("tech", reply, logger); // get server response
+            int accepted = std::stoi(*reply);
             if (accepted) {
                 logger << "Passcode accepted\n"
                           "Connection with peer established\n";
@@ -51,13 +50,15 @@ void EnterVideoChat(int option, Terminal &terminal, WebCamera &camera, GUI &inte
 
     logger << "Terminal height x width: " << height << "x" << width << "\n";
     logger << "Camera is " << ((camera.is_initialized) ? "" : "not ") << "initialized\n";
-    snprintf(client.send_buf, sizeof(client.send_buf), "%d %d %d", height, width, camera.is_initialized);
-    client.SendMessage(logger); // send terminal size and camera availability info to peer
+    std::string msg =
+            std::to_string(height) + " " + std::to_string(width) + " " + std::to_string(camera.is_initialized);
+    network.SendMessage("tech", msg, logger); // send terminal size and camera availability info to peer
 
-    client.GetMessage(logger); // get terminal size and camera availability info from peer
-    sscanf(client.recv_buf, "%d %d %d", &companion_height, &companion_width, &other_side_has_camera);
-    logger << "Got following companion's height x width: " << companion_height << "x" << companion_width
-           << "\n";
+    std::unique_ptr<std::string> reply;
+    network.GetMessage("tech", reply, logger); // get terminal size and camera availability info from peer
+    std::stringstream translator(*reply);
+    translator >> companion_height >> companion_width >> other_side_has_camera;
+    logger << "Got following companion's height x width: " << companion_height << "x" << companion_width << "\n";
     logger << "Companion's camera is " << ((other_side_has_camera) ? "" : "not ") << "initialized\n";
     if (camera.is_initialized) { // calculate to which size frames should be transformed before sending to peer
         camera.GetNewFrame(logger);
@@ -71,11 +72,12 @@ void EnterVideoChat(int option, Terminal &terminal, WebCamera &camera, GUI &inte
         companion_new_height = 10;
         companion_new_width = 10;
     }
-    snprintf(client.send_buf, sizeof(client.send_buf), "%d %d", companion_new_height, companion_new_width);
-    client.SendMessage(logger); // send resulting size to peer
+    msg = std::to_string(companion_new_height) + " " + std::to_string(companion_new_width);
+    network.SendMessage("tech", msg, logger); // send resulting size to peer
 
-    client.GetMessage(logger); // get resulting size from peer
-    sscanf(client.recv_buf, "%d %d", &height, &width);
+    network.GetMessage("tech", reply, logger); // get resulting size from peer
+    translator << *reply;
+    translator >> height >> width;
     logger << "Got following frame resulting height x width: " << height << "x" << width << "\n";
 
     // Enter get/send state, in which in 2 threads:
@@ -95,13 +97,26 @@ void EnterVideoChat(int option, Terminal &terminal, WebCamera &camera, GUI &inte
                 break;
             }
             mutex.unlock();
-            if (client.GetMessage(logger) < 0) {
+            std::unique_ptr<std::string> reply;
+            if (network.GetMessage("video", reply, logger) < 0) {
                 break;
             }
             std::vector<std::vector<u_char>> matrix(height, std::vector<u_char>(width));
-            for (int i = 0; i < height; ++i) {
-                for (int j = 0; j < width; ++j) {
-                    matrix[i][j] = client.recv_buf[i * width + j];
+            if (reply->length() < width * height) {
+                for (int i = 0; i < height; ++i) {
+                    for (int j = 0; j < width; ++j) {
+                        if (reply->length() > i * width + j) {
+                            matrix[i][j] = (*reply)[i * width + j];
+                        } else {
+                            matrix[i][j] = ' ';
+                        }
+                    }
+                }
+            } else {
+                for (int i = 0; i < height; ++i) {
+                    for (int j = 0; j < width; ++j) {
+                        matrix[i][j] = (*reply)[i * width + j];
+                    }
                 }
             }
             mutex.lock();
@@ -122,25 +137,20 @@ void EnterVideoChat(int option, Terminal &terminal, WebCamera &camera, GUI &inte
                 break;
             }
             mutex.unlock();
+            std::string msg;
             if (camera.is_initialized) {
                 camera.GetNewFrame(logger);
                 camera.PreprocessFrame(size);
                 std::vector<std::vector<u_char>> ascii_matrix = ConvertFrameToASCII(camera.GetFrame());
                 for (int i = 0; i < ascii_matrix.size(); ++i) {
                     for (int j = 0; j < ascii_matrix[0].size(); ++j) {
-                        client.send_buf[i * ascii_matrix[0].size() + j] = ascii_matrix[i][j];
+                        msg += ascii_matrix[i][j];
                     }
                 }
             } else {
-                std::string msg = "here could be frame";
-                for (int i = 0; i < msg.length(); ++i) {
-                    client.send_buf[i] = msg[i];
-                }
-                for (int i = msg.length(); i < BUF_SIZE; ++i) {
-                    client.send_buf[i] = ' ';
-                }
+                msg = "here could be frame...";
             }
-            if (client.SendMessage(logger) < 0) {
+            if (network.SendMessage("video", msg, logger) < 0) {
                 break;
             }
         }
@@ -153,33 +163,31 @@ void EnterVideoChat(int option, Terminal &terminal, WebCamera &camera, GUI &inte
         receiver.join();
     }
 
-    client.TerminateConnection(logger);
+    network.TerminateConnection(logger);
 }
 
 void EnterChat(int option, Terminal &terminal, GUI &interface, Logger &logger) {
-    Client client{};
-    if (client.Connect(logger) < 0) {
+    Network network({"tech", "chat"});
+    if (network.Connect(logger) < 0) {
         return;
     }
     if (option == 1) {  // host
-        char pass_code[10];
-        client.GetMessage(logger); // get passcode from server
-        sscanf(client.recv_buf, "%s", pass_code);
-        logger << "Got passcode from server: " << pass_code << "\n";
+        std::unique_ptr<std::string> pass_code;
+        network.GetMessage("tech", pass_code, logger); // get passcode from server
+        logger << "Got passcode from server: " << *pass_code << "\n";
 
-        client.GetMessage(logger); // get confirmation from server that peer connected
+        network.GetMessage("tech", pass_code, logger); // get confirmation from server that peer connected
         logger << "Connection with peer established\n";
     } else {            // client
         while (true) {
             auto coords = PrintInputMenu(terminal, interface.passcode_enter);
             std::string input = GetInputFromInputMenu(coords);
             logger << "Entered passcode: " << input << "\n";
-            snprintf(client.send_buf, sizeof(client.send_buf), "%s", input.c_str());
-            client.SendMessage(logger); // send entered passcode to server for confirmation
+            network.SendMessage("tech", input, logger); // send entered passcode to server for confirmation
 
-            client.GetMessage(logger); // get server response
-            int accepted;
-            sscanf(client.recv_buf, "%d", &accepted);
+            std::unique_ptr<std::string> reply;
+            network.GetMessage("tech", reply, logger); // get server response
+            int accepted = std::stoi(*reply);
             if (accepted) {
                 logger << "Passcode accepted\n"
                           "Connection with peer established\n";
@@ -199,17 +207,16 @@ void EnterChat(int option, Terminal &terminal, GUI &interface, Logger &logger) {
     std::atomic_bool chat_is_closed = false;
 
     std::thread receiver([&]() {
-        std::string message;
         while (!chat_is_closed) {
-            client.GetMessage(logger);
-            message = std::string(client.recv_buf);
-            logger << "Got message from server: " << message << "\n";
-            if (message == "quit") {
+            std::unique_ptr<std::string> message;
+            if (network.GetMessage("chat", message, logger) < 0) {
                 chat_is_closed = true;
-                message = ending_message;
+                *message = ending_message;
             }
-            message = serv_msg_pref + message;
-            chat.addMessageToHistory(message, logger);
+
+            logger << "Got message from server: " << *message << "\n";
+            *message = serv_msg_pref + *message;
+            chat.addMessageToHistory(*message, logger);
             chat.updateChat();
         }
     });
@@ -225,11 +232,13 @@ void EnterChat(int option, Terminal &terminal, GUI &interface, Logger &logger) {
             int control_code = chat.processMessage(logger);
             if (control_code == -1) {
                 chat_is_closed = true;
+                network.TerminateConnection(logger);
+                return;
             }
 
-            snprintf(client.send_buf, sizeof(client.send_buf), "%s", chat.getMessage().c_str());
-            logger << "Sending message: " << client.send_buf << "\n";
-            client.SendMessage(logger);
+            std::string message = chat.getMessage();
+            logger << "Sending message: " << message << "\n";
+            network.SendMessage("chat", message, logger);
 
             chat.clearMessage();
             chat.updateChat();
@@ -237,7 +246,7 @@ void EnterChat(int option, Terminal &terminal, GUI &interface, Logger &logger) {
     });
     sender.join();
     receiver.join();
-    client.TerminateConnection(logger);
+//    network.TerminateConnection(logger);
 }
 
 void SelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
@@ -293,14 +302,17 @@ void DebSelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
 
 
 void Execute() {
-    std::ofstream file(
-            "./cout_cerr.txt"); // <---- somehow, if extracted into function, causes SIGSEGV 139 on call to std::cout
-
-    std::streambuf *old_cout_buf = std::cout.rdbuf(); // save cout/cerr old streambufs
-    std::streambuf *old_cerr_buf = std::cerr.rdbuf();
-
-    std::cout.rdbuf(file.rdbuf()); // Redirect cout/cerr to file
-    std::cerr.rdbuf(file.rdbuf()); // <----
+    FILE *of = fopen("./cout_cerr.txt", "w");
+    dup2(fileno(of), STDERR_FILENO);
+    fclose(of);
+//    std::ofstream file(
+//            "./cout_cerr.txt"); // <---- somehow, if extracted into function, causes SIGSEGV 139 on call to std::cout
+//
+//    std::streambuf *old_cout_buf = std::cout.rdbuf(); // save cout/cerr old streambufs
+//    std::streambuf *old_cerr_buf = std::cerr.rdbuf();
+//
+//    std::cout.rdbuf(file.rdbuf()); // Redirect cout/cerr to file
+//    std::cerr.rdbuf(file.rdbuf()); // <----
 
 
     Logger logger;
@@ -357,6 +369,7 @@ void Execute() {
         }
     }
 
-    std::cout.rdbuf(old_cout_buf); // Restore cout/cerr streambufs before exit
-    std::cerr.rdbuf(old_cerr_buf);
+//    std::cout.rdbuf(old_cout_buf); // Restore cout/cerr streambufs before exit
+//    std::cerr.rdbuf(old_cerr_buf);
+
 }

@@ -18,10 +18,14 @@ add_executable(AsciiCam
         executor.cpp
         logger.h
         logger.cpp
-        client.cpp
-        client.h
+        network.cpp
+        network.h
         scroll_object.cpp
         scroll_object.h
         chat.cpp
         chat.h)
-target_link_libraries(AsciiCam ${OpenCV_LIBS} -lncurses)
+#        video_driver.cpp
+#        video_driver.h)
+set(ASAN_OPTIONS "log_path=</home/user/Desktop/log.txt>")
+add_definitions(-DASAN_OPTIONS="${ASAN_OPTIONS}")
+target_link_libraries(AsciiCam ${OpenCV_LIBS} -lncurses -fsanitize=address -static-libasan -g)

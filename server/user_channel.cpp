@@ -17,7 +17,7 @@ int UserChannel::Create(int sock_fd, Logger &logger) {
     int random = rand() % 10000;
     logger << "Created channel id: " << random << "\n";
     std::cout << "Created channel id: " << random << "\n";
-    std::string a = std::to_string(random);
+    std::string a = "tech " + std::to_string(random);
     for (int i = 0; i < a.size(); ++i) {
         init_buffer[i] = a[i];
     }
@@ -38,20 +38,31 @@ int UserChannel::Create(int sock_fd, Logger &logger) {
     while (true) {
         char *end;
         GetMessage(acceptor_fd, acc_buffer, logger);
-        if (strtol(acc_buffer, &end, 10) == random) {
+        if (strtol(acc_buffer + 5, &end, 10) == random) {
             std::cout << "Acceptor sent valid password\n";
             logger << "Acceptor sent valid password\n";
-            acc_buffer[0] = '1';
-            acc_buffer[1] = '\0';
+            std::string reply = "tech 1";
+            for (int i = 0; i < reply.size(); ++i) {
+                acc_buffer[i] = reply[i];
+            }
+            acc_buffer[reply.size()] = '\0';
             SendMessage(acceptor_fd, acc_buffer, logger);
             break;
         }
-        std::cout << "Acceptor sent invalid password\n";
-        logger << "Acceptor sent invalid password\n";
-        acc_buffer[0] = '0';
-        acc_buffer[1] = '\0';
+        std::cout << "Acceptor sent invalid password: \"" << acc_buffer << "\"\n";
+        logger << "Acceptor sent invalid password: \"" << acc_buffer << "\"\n";
+        std::string reply = "tech 0";
+        for (int i = 0; i < reply.size(); ++i) {
+            acc_buffer[i] = reply[i];
+        }
+        acc_buffer[reply.size()] = '\0';
         SendMessage(acceptor_fd, acc_buffer, logger);
     }
+    a = "tech ";
+    for (int i = 0; i < a.size(); ++i) {
+        init_buffer[i] = a[i];
+    }
+    init_buffer[a.size()] = '\0';
     SendMessage(initiator_fd, init_buffer, logger);
     return 0;
 }
