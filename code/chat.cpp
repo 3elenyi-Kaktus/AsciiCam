@@ -1,24 +1,32 @@
 #include "chat.h"
 
-Chat::Chat(int pos_y, int pos_x, int width, int height) : scr(MANUAL, 5, 10), typing_pos({pos_x, pos_y}),
-                                                          chat_size({width, height}) {
-    keypad(stdscr, false); // enter raw mode for escape sequences
-    curs_set(1); // show cursor
+// need to implement check on chat positions availability and corner cases
+Chat::Chat(const Coordinates &chat_position, const Size &chat_size, ScreenManager &manager) : scr(MANUAL, 5, 10),
+                                                                                  chat_pos(chat_position),
+                                                                                  chat_size(chat_size),
+                                                                                  messages_pos(),
+                                                                                  typing_pos(),
+                                                                                  current_pos(),
+                                                                                  screenManager(&manager) {
+    screenManager->keycodesMode(false); // enter raw mode for escape sequences
+    screenManager->cursorMode(1); // show cursor
 
     tcgetattr(STDIN_FILENO, &orig_termios); // save canonical terminal mode and switch to raw
     struct termios raw = orig_termios;
     raw.c_lflag &= ~(ECHO | ICANON);
-
 //    raw.c_cc[VMIN] = 0;
 //    raw.c_cc[VTIME] = 1;
-
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+
+    messages_pos = {chat_pos.y, chat_pos.x + 1};
+    typing_pos = {chat_pos.y + chat_size.height - 3, chat_pos.x + 1};
+    current_pos = typing_pos;
 }
 
 int Chat::getChar(Logger &logger) {
-    move(typing_pos.y, typing_pos.x);
-    refresh();
-    logger << "waiting for char at " << typing_pos.y << " " << typing_pos.x << "\n";
+    screenManager->moveCursor(current_pos);
+    screenManager->refreshScreen();
+    logger << "waiting for char at " << current_pos.y << " " << current_pos.x << "\n";
     char c;
     if (read(STDIN_FILENO, &c, 1) != 1) {
         return -1;
@@ -81,26 +89,24 @@ void Chat::updateMessage(char c, Logger &logger) {
         if (message.empty()) {
             return;
         }
-        --typing_pos.x;
-        mvaddch(typing_pos.y, typing_pos.x, ' ');
+        --current_pos.x;
+        screenManager->mvCharPrint(current_pos, ' ');
         message.pop_back();
     } else { // Add char, if possible
         logger << "Letter entered: " << (char) c << "\n";
-        mvaddch(typing_pos.y, typing_pos.x, c);
-        ++typing_pos.x;
+        screenManager->mvCharPrint(current_pos, c);
+        ++current_pos.x;
         message += c;
     }
-    refresh();
+    screenManager->refreshScreen();
 }
 
 void Chat::clearMessage() {
+    std::string cleaner(message.length(), ' ');
     message.clear();
-    while (typing_pos.x >= 0) {
-        --typing_pos.x;
-        mvaddch(typing_pos.y, typing_pos.x, ' ');
-    }
-    typing_pos.x = 0;
-    refresh();
+    current_pos = typing_pos;
+    screenManager->mvStringPrint(current_pos, cleaner);
+    screenManager->refreshScreen();
 }
 
 int Chat::processMessage(Logger &logger) {
@@ -136,15 +142,13 @@ void Chat::performScroll(int64_t key, Logger &logger) {
 
 void Chat::updateChat() {
     std::deque<std::string> visible_lines = scr.getVisibleChunk();
-    int pos_y = 0;
-    int pos_x = 0;
-    for (const std::string &line: visible_lines) {
-        mvprintw(pos_y, pos_x, "%-*s", chat_size.width, line.c_str());
-        getyx(stdscr, pos_y, pos_x);
-        pos_x = 0;
+    Coordinates print_coords(messages_pos);
+    for (std::string line: visible_lines) {
+        line.append(chat_size.width - line.length(), ' ');
+        screenManager->mvStringPrint(print_coords, line);
+        ++print_coords.y;
     }
-    move(typing_pos.y, typing_pos.x);
-    refresh();
+    screenManager->refreshScreen(true);
 }
 
 std::string &Chat::getMessage() {
@@ -152,7 +156,7 @@ std::string &Chat::getMessage() {
 }
 
 Chat::~Chat() {
-    curs_set(0); // hide cursor
+    screenManager->cursorMode(0); // hide cursor
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios); // return original terminal settings
-    keypad(stdscr, true); // restore escape sequences mode to ncurses
+    screenManager->keycodesMode(true); // restore escape sequences mode to ncurses
 }

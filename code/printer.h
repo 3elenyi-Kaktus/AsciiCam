@@ -74,6 +74,4 @@ std::pair<int, int> PrintInputMenu(Terminal &terminal, InputMenu &input_menu);
 
 std::string GetInputFromInputMenu(std::pair<int, int> &coords);
 
-void PrintFrame(Terminal &terminal, std::vector<std::vector<u_char>> &matrix);
-
 void ClearScreen();

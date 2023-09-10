@@ -12,7 +12,7 @@ Network::Network(const std::vector<std::string> &IDs) : send_buf(BUF_SIZE), recv
 
 int Network::Connect(Logger &logger) {
     char port_no[] = "33333\0";
-    char ipaddr[] = "51.250.109.142\0";
+    char ipaddr[] = "localhost\0";
 
     struct addrinfo hints{};
     hints.ai_family = AF_INET;
@@ -47,7 +47,6 @@ int Network::Connect(Logger &logger) {
     logger << "Connected to server successfully\n";
     poller = std::thread([&]() {
         while (true) {
-            //recv_buf.clear();
             logger << "Poller trying to get message\n";
             ssize_t n = recv(sock_fd, &(recv_buf[0]), BUF_SIZE, MSG_WAITALL);
             if (n <= 0) {
@@ -90,15 +89,12 @@ int Network::Connect(Logger &logger) {
 int Network::GetMessage(const std::string &id, std::unique_ptr<std::string> &dest, Logger &logger) {
     logger << "Message requested for \"" << id << "\", getting mutex\n";
     std::unique_lock<std::mutex> mtx(locks[id]);
-    logger << "Acquired mutex\n";
     while (data_packets[id].empty()) {
         availability[id].wait(mtx);
     }
     logger << "Message retrieved: \"" << *data_packets[id].front() << "\"\n";
     dest = std::move(data_packets[id].front());
-    logger << "Moved\n";
     data_packets[id].pop_front();
-    logger << "Popped\n";
     if (*dest == "!stop") {
         return -1;
     }
@@ -110,10 +106,7 @@ int Network::SendMessage(const std::string &id, const std::string &message, Logg
     send_buf[id.length()] = ' ';
     std::copy(message.begin(), message.end(), send_buf.begin() + id.length() + 1);
     *(send_buf.begin() + id.length() + message.length() + 1) = '\0';
-    logger << "___ " << id.length() + message.length() + 1 << "\n";
-    logger << "buf size: " << send_buf.size() << " buf capacity: " << send_buf.capacity() << "\n";
-//    std::fill(send_buf.begin() + id.length() + message.length() + 1, send_buf.end(), '\0');
-//    logger << "Sending message: \"" << (std::string&)send_buf << "\"\n";
+    logger << "Sending: \"" << message << "\"\n";
     ssize_t n = send(sock_fd, &(send_buf[0]), BUF_SIZE, MSG_NOSIGNAL);
     if (n <= 0) {
         logger << "ERROR on writing to socket\n";
@@ -125,7 +118,6 @@ int Network::SendMessage(const std::string &id, const std::string &message, Logg
 void Network::TerminateConnection(Logger &logger) {
     logger << "Connection with server terminated\n";
     shutdown(sock_fd, SHUT_RDWR);
-//    poller.join();
     logger << "Polling ended\n";
 }
 

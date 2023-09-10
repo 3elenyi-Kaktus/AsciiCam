@@ -199,17 +199,6 @@ std::string GetInputFromInputMenu(std::pair<int, int> &coords) { // is made only
     return input;
 }
 
-void PrintFrame(Terminal &terminal, std::vector<std::vector<u_char>> &matrix) {
-    int pos_x = (terminal.width - matrix[0].size()) / 2;
-    int pos_y = (terminal.height - matrix.size()) / 2;
-    for (size_t i = 0; i < matrix.size(); ++i) {
-        for (size_t j = 0; j < matrix[0].size(); ++j) {
-            mvprintw(pos_y + i, pos_x + j, "%c", matrix[i][j]);
-        }
-    }
-    refresh();
-}
-
 void ClearScreen() {
     clear();
     refresh();

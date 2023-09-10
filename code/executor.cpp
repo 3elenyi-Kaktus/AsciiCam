@@ -1,7 +1,7 @@
 #include "executor.h"
-#include "termios.h"
 #include "scroll_object.h"
 #include "chat.h"
+#include "video_driver.h"
 
 #include "thread"
 #include "string"
@@ -56,7 +56,7 @@ void EnterVideoChat(int option, Terminal &terminal, WebCamera &camera, GUI &inte
 
     std::unique_ptr<std::string> reply;
     network.GetMessage("tech", reply, logger); // get terminal size and camera availability info from peer
-    std::stringstream translator(*reply);
+    std::istringstream translator(*reply);
     translator >> companion_height >> companion_width >> other_side_has_camera;
     logger << "Got following companion's height x width: " << companion_height << "x" << companion_width << "\n";
     logger << "Companion's camera is " << ((other_side_has_camera) ? "" : "not ") << "initialized\n";
@@ -76,7 +76,8 @@ void EnterVideoChat(int option, Terminal &terminal, WebCamera &camera, GUI &inte
     network.SendMessage("tech", msg, logger); // send resulting size to peer
 
     network.GetMessage("tech", reply, logger); // get resulting size from peer
-    translator << *reply;
+    translator.clear();
+    translator.str(*reply);
     translator >> height >> width;
     logger << "Got following frame resulting height x width: " << height << "x" << width << "\n";
 
@@ -85,18 +86,13 @@ void EnterVideoChat(int option, Terminal &terminal, WebCamera &camera, GUI &inte
     // 2. Get other persons frame, Print it
     // Threads are activated only if their existence is appropriate (? not anymore)
 
-    std::mutex mutex;
+//    std::mutex mutex;
+    ScreenManager screenManager(terminal.height, terminal.width);
 
     std::thread receiver = std::thread([&]() {
         logger << "Created receiving thread\n";
         while (true) {
-            mutex.lock();
-            timeout(1); // wait for keypress
-            if (getch() != ERR) {
-                mutex.unlock();
-                break;
-            }
-            mutex.unlock();
+            Coordinates print_coords(1, (terminal.width - width) / 2);
             std::unique_ptr<std::string> reply;
             if (network.GetMessage("video", reply, logger) < 0) {
                 break;
@@ -119,9 +115,8 @@ void EnterVideoChat(int option, Terminal &terminal, WebCamera &camera, GUI &inte
                     }
                 }
             }
-            mutex.lock();
-            PrintFrame(terminal, matrix);
-            mutex.unlock();
+            screenManager.mvChunkPrint(print_coords, matrix);
+            screenManager.refreshScreen(true);
         }
     });
 
@@ -130,13 +125,6 @@ void EnterVideoChat(int option, Terminal &terminal, WebCamera &camera, GUI &inte
         std::pair<int, int> size = std::make_pair(companion_new_height, companion_new_width);
         size = ConvertSizeToPx(size);
         while (true) {
-            mutex.lock();
-            timeout(1); // wait for keypress
-            if (getch() != ERR) {
-                mutex.unlock();
-                break;
-            }
-            mutex.unlock();
             std::string msg;
             if (camera.is_initialized) {
                 camera.GetNewFrame(logger);
@@ -149,12 +137,62 @@ void EnterVideoChat(int option, Terminal &terminal, WebCamera &camera, GUI &inte
                 }
             } else {
                 msg = "here could be frame...";
+                sleep(1);
             }
             if (network.SendMessage("video", msg, logger) < 0) {
                 break;
             }
         }
     });
+
+    Chat chat({1 + height + 3, 0}, {terminal.height - height - 4, terminal.width}, screenManager);
+
+
+    const std::string my_msg_pref = "You > ";
+    const std::string serv_msg_pref = "Server > ";
+    const std::string ending_message = "The other person terminated chat.";
+    std::atomic_bool chat_is_closed = false;
+
+    std::thread rec([&]() {
+        while (!chat_is_closed) {
+            std::unique_ptr<std::string> message;
+            if (network.GetMessage("chat", message, logger) < 0) {
+                chat_is_closed = true;
+                *message = ending_message;
+            }
+
+            logger << "Got message from server: " << *message << "\n";
+            *message = serv_msg_pref + *message;
+            chat.addMessageToHistory(*message, logger);
+            chat.updateChat();
+        }
+    });
+
+    std::thread sen([&]() {
+        while (!chat_is_closed) {
+            int c;
+            bool is_typing = true;
+            while (is_typing) {
+                c = chat.getChar(logger);
+                is_typing = chat.processInput(c, logger);
+            }
+            int control_code = chat.processMessage(logger);
+            if (control_code == -1) {
+                chat_is_closed = true;
+                network.TerminateConnection(logger);
+                return;
+            }
+
+            std::string message = chat.getMessage();
+            logger << "Sending message: " << message << "\n";
+            network.SendMessage("chat", message, logger);
+
+            chat.clearMessage();
+            chat.updateChat();
+        }
+    });
+    sen.join();
+    rec.join();
 
     if (sender.joinable()) {
         sender.join();
@@ -198,7 +236,8 @@ void EnterChat(int option, Terminal &terminal, GUI &interface, Logger &logger) {
     }
 
     ClearScreen();
-    Chat chat(terminal.height - 2, 0, terminal.width, terminal.height);
+    ScreenManager screenManager(terminal.height, terminal.width);
+    Chat chat({terminal.height - 2, 0}, {terminal.width, terminal.height}, screenManager);
 
 
     const std::string my_msg_pref = "You > ";
@@ -249,6 +288,7 @@ void EnterChat(int option, Terminal &terminal, GUI &interface, Logger &logger) {
 //    network.TerminateConnection(logger);
 }
 
+// not working, needs printing
 void SelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
     camera.GetNewFrame(logger);
     std::pair<int, int> ret_size = camera.GetFittedFrameSize(terminal.height, terminal.width);
@@ -260,10 +300,11 @@ void SelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
         camera.GetNewFrame(logger);
         camera.PreprocessFrame(ret_size);
         std::vector<std::vector<u_char>> ascii_matrix = ConvertFrameToASCII(camera.GetFrame());
-        PrintFrame(terminal, ascii_matrix);
+        // PrintFrame(terminal, ascii_matrix);
     }
 }
 
+// not working, needs printing
 void DebSelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
     camera.GetNewFrame(logger);
     std::pair<int, int> ret_size = camera.GetFittedFrameSize(terminal.height, terminal.width);
@@ -290,7 +331,7 @@ void DebSelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
         logger << "Frame was converted in "
                << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms\n";
         start = std::chrono::high_resolution_clock::now();
-        PrintFrame(terminal, ascii_matrix);
+        //PrintFrame(terminal, ascii_matrix);
         end = std::chrono::high_resolution_clock::now();
         logger << "Frame was printed in " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
                << "ms\n";
@@ -350,7 +391,8 @@ void Execute() {
         } else if (option == 5) { // for debug
             ClearScreen();
 
-            Chat chat(terminal.height - 2, 0, terminal.width, terminal.height);
+            ScreenManager screenManager(terminal.height, terminal.width);
+            Chat chat({terminal.height - 2, 0}, {terminal.width, terminal.height}, screenManager);
 
             bool is_chatting = true;
             while (is_chatting) {

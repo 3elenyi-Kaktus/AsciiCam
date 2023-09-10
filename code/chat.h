@@ -2,28 +2,19 @@
 
 #include "scroll_object.h"
 #include "logger.h"
-#include "ncurses.h"
 #include "cstdint"
 #include "unistd.h"
 #include "termios.h"
+#include "video_driver.h"
+#include "definitions.h"
 
 enum Keys {
     ARROW_UP = INT8_MAX + 1, ARROW_DOWN, ARROW_LEFT, ARROW_RIGHT, ESCAPE
 };
 
-struct Coordinates {
-    int64_t x;
-    int64_t y;
-};
-
-struct Size {
-    int width;
-    int height;
-};
-
 class Chat {
 public:
-    Chat(int pos_y, int pos_x, int width, int height);
+    Chat(const Coordinates& chat_position, const Size& chat_size, ScreenManager &manager);
 
     int getChar(Logger &logger);
 
@@ -50,8 +41,12 @@ public:
 private:
     ScrollObject scr;
     std::string message;
-    Coordinates typing_pos;
+    Coordinates chat_pos;
     Size chat_size;
+    Coordinates messages_pos;
+    Coordinates typing_pos;
+    Coordinates current_pos;
 
+    ScreenManager *screenManager;
     struct termios orig_termios{};  // for terminal settings
 };
