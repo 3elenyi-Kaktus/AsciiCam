@@ -7,20 +7,18 @@
 #include "termios.h"
 #include "video_driver.h"
 #include "definitions.h"
+#include "input_device.h"
 
-enum Keys {
-    ARROW_UP = INT8_MAX + 1, ARROW_DOWN, ARROW_LEFT, ARROW_RIGHT, ESCAPE
-};
 
 class Chat {
 public:
     Chat(const Coordinates& chat_position, const Size& chat_size, ScreenManager &manager);
 
-    int getChar(Logger &logger);
+    void drawBorders();
 
-    bool processInput(int c, Logger &logger);
+    bool processNewInput(Logger &logger);
 
-    void updateMessage(char c, Logger &logger);
+    void updateMessage(wint_t c, Logger &logger);
 
     void clearMessage();
 
@@ -34,17 +32,19 @@ public:
 
     void updateChat();
 
-    std::string &getMessage();
+    std::wstring &getMessage();
 
     ~Chat();
 
 private:
     ScrollObject scr;
-    std::string message;
+    std::wstring message;
     Coordinates chat_pos;
     Size chat_size;
-    Coordinates messages_pos;
-    Coordinates typing_pos;
+    Coordinates messages_box_pos;
+    Size messages_box_size;
+    Coordinates typing_box_pos;
+    Size typing_box_size;
     Coordinates current_pos;
 
     ScreenManager *screenManager;

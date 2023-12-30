@@ -1,9 +1,9 @@
 #include "video_driver.h"
 
-ScreenManager::ScreenManager(int height, int width) : screen(height, std::vector<char>(width + 1, ' ')),
+ScreenManager::ScreenManager(int height, int width) : screen(height, std::vector<wchar_t>(width + 1, L' ')),
                                                       line_is_changed(height, 0), screen_size(height, width) {
     for (int i = 0; i < screen_size.height; ++i) {
-        screen[i][screen_size.width] = '\0';
+        screen[i][screen_size.width] = L'\0';
     }
 }
 
@@ -28,13 +28,13 @@ void ScreenManager::moveCursor(Coordinates &coords) {
     move(coords.y, coords.x);
 }
 
-void ScreenManager::mvCharPrint(Coordinates &coords, char c) {
+void ScreenManager::mvCharPrint(Coordinates &coords, wchar_t c) {
     std::lock_guard<std::mutex> lock(mtx);
     screen[coords.y][coords.x] = c;
     line_is_changed[coords.y] = 1;
 }
 
-void ScreenManager::mvStringPrint(Coordinates &coords, const std::string &str) {
+void ScreenManager::mvStringPrint(Coordinates &coords, const std::wstring &str) {
     int length_to_copy = str.length();
     if (coords.x + str.length() > screen_size.width) {
         length_to_copy = screen_size.width - coords.x;
@@ -67,7 +67,7 @@ void ScreenManager::refreshScreen(bool save_cursor_pos) {
     }
     for (int indicator: line_is_changed) {
         if (indicator) {
-            mvprintw(pos_y, 0, "%s", (char *) &(screen[pos_y][0]));
+            mvprintw(pos_y, 0, "%ls", (wchar_t *) &(screen[pos_y][0]));
         }
         ++pos_y;
     }

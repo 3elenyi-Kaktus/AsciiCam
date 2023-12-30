@@ -18,9 +18,9 @@ public:
 
     void moveCursor(Coordinates &coords);
 
-    void mvCharPrint(Coordinates &coords, char c);
+    void mvCharPrint(Coordinates &coords, wchar_t c);
 
-    void mvStringPrint(Coordinates &coords, const std::string &str);
+    void mvStringPrint(Coordinates &coords, const std::wstring &str);
 
     void mvChunkPrint(Coordinates &coords, std::vector<std::vector<u_char>> &chunk);
 
@@ -28,7 +28,7 @@ public:
 
 
 private:
-    std::vector<std::vector<char>> screen;
+    std::vector<std::vector<wchar_t>> screen;
     std::vector<int> line_is_changed;
     Size screen_size;
     std::mutex mtx;

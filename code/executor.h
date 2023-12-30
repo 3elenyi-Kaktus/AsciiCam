@@ -7,6 +7,6 @@
 #include "chrono"
 #include "network.h"
 
-void Execute();
+void Execute(Logger& logger);
 
 void SelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger);

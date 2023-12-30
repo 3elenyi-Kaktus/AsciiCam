@@ -170,11 +170,9 @@ void EnterVideoChat(int option, Terminal &terminal, WebCamera &camera, GUI &inte
 
     std::thread sen([&]() {
         while (!chat_is_closed) {
-            int c;
             bool is_typing = true;
             while (is_typing) {
-                c = chat.getChar(logger);
-                is_typing = chat.processInput(c, logger);
+                is_typing = chat.processNewInput(logger);
             }
             int control_code = chat.processMessage(logger);
             if (control_code == -1) {
@@ -183,7 +181,7 @@ void EnterVideoChat(int option, Terminal &terminal, WebCamera &camera, GUI &inte
                 return;
             }
 
-            std::string message = chat.getMessage();
+            std::string message = WTOSTRING(chat.getMessage());
             logger << "Sending message: " << message << "\n";
             network.SendMessage("chat", message, logger);
 
@@ -237,7 +235,7 @@ void EnterChat(int option, Terminal &terminal, GUI &interface, Logger &logger) {
 
     ClearScreen();
     ScreenManager screenManager(terminal.height, terminal.width);
-    Chat chat({terminal.height - 2, 0}, {terminal.width, terminal.height}, screenManager);
+    Chat chat({terminal.height - 2, 0}, {terminal.height, terminal.width}, screenManager);
 
 
     const std::string my_msg_pref = "You > ";
@@ -262,11 +260,9 @@ void EnterChat(int option, Terminal &terminal, GUI &interface, Logger &logger) {
 
     std::thread sender([&]() {
         while (!chat_is_closed) {
-            int c;
             bool is_typing = true;
             while (is_typing) {
-                c = chat.getChar(logger);
-                is_typing = chat.processInput(c, logger);
+                is_typing = chat.processNewInput(logger);
             }
             int control_code = chat.processMessage(logger);
             if (control_code == -1) {
@@ -275,7 +271,7 @@ void EnterChat(int option, Terminal &terminal, GUI &interface, Logger &logger) {
                 return;
             }
 
-            std::string message = chat.getMessage();
+            std::string message = WTOSTRING(chat.getMessage());
             logger << "Sending message: " << message << "\n";
             network.SendMessage("chat", message, logger);
 
@@ -342,7 +338,7 @@ void DebSelfVideo(Terminal &terminal, WebCamera &camera, Logger &logger) {
 }
 
 
-void Execute() {
+void Execute(Logger& logger) {
     FILE *of = fopen("./cout_cerr.txt", "w");
     dup2(fileno(of), STDERR_FILENO);
     fclose(of);
@@ -356,8 +352,6 @@ void Execute() {
 //    std::cerr.rdbuf(file.rdbuf()); // <----
 
 
-    Logger logger;
-    logger << "Start of AsciiCam\n";
     Terminal terminal;
     GUI interface;
     WebCamera camera(logger);
@@ -392,20 +386,23 @@ void Execute() {
             ClearScreen();
 
             ScreenManager screenManager(terminal.height, terminal.width);
-            Chat chat({terminal.height - 2, 0}, {terminal.width, terminal.height}, screenManager);
+            Chat chat({0, 0}, {terminal.height, terminal.width}, screenManager);
 
             bool is_chatting = true;
             while (is_chatting) {
-                int c;
                 bool is_typing = true;
                 while (is_typing) {
-                    c = chat.getChar(logger);
-                    is_typing = chat.processInput(c, logger);
+                    is_typing = chat.processNewInput(logger);
                 }
                 int control_code = chat.processMessage(logger);
                 if (control_code == -1) {
                     is_chatting = false;
                 }
+
+                std::string message = WTOSTRING(chat.getMessage());
+                logger << "Got message: " << message << "\n";
+
+                chat.clearMessage();
                 chat.updateChat();
             }
         }

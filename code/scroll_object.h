@@ -4,32 +4,44 @@
 #include <vector>
 #include "deque"
 #include "logger.h"
+#include "definitions.h"
 
-enum Behaviour {
-    MANUAL, SCROLL_DOWN_ON_UPDATE
+enum ScrollBehaviour {
+    MANUAL,
+    SCROLL_DOWN_ON_UPDATE
+};
+
+enum ScrollbarPresence {
+    ENABLED,
+    DISABLED
+};
+
+struct ScrollObjectParams {
+    ScrollBehaviour behaviour;
+    ScrollbarPresence scrollbar;
 };
 
 class ScrollObject {
 public:
-    ScrollObject(Behaviour behaviour, int64_t max_num_of_visible_lines, int64_t line_length) : behaviour(behaviour),
-                                                                                               max_num_of_visible_lines(
-                                                                                                       max_num_of_visible_lines),
-                                                                                               line_length(
-                                                                                                       line_length) {};
+    ScrollObject();
 
-    void addLine(std::string &str, Logger &logger);
+    ScrollObject(const ScrollObjectParams& params, const Size& obj_size);
 
-    std::deque<std::string> &getVisibleChunk();
+    void addLine(const std::wstring &str, Logger &logger);
+
+    std::deque<std::wstring> &getVisibleChunk();
 
     bool scrollDown(Logger &logger);
 
     bool scrollUp(Logger &logger);
 
+    void addScrollbar();
+
 private:
-    std::vector<std::string> lines;
-    std::deque<std::string> visible_chunk;
+    std::vector<std::wstring> lines;
+    std::deque<std::wstring> visible_chunk;
+    Size size{};
     int64_t position = 0;
-    int64_t max_num_of_visible_lines;
-    int64_t line_length;
-    Behaviour behaviour;
+    ScrollBehaviour scroll_behaviour;
+    ScrollbarPresence scrollbar;
 };

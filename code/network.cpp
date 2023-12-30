@@ -6,8 +6,6 @@ Network::Network(const std::vector<std::string> &IDs) : send_buf(BUF_SIZE), recv
         locks[id];
         availability[id];
     }
-    send_buf.reserve(BUF_SIZE);
-    //recv_buf.reserve(BUF_SIZE);
 }
 
 int Network::Connect(Logger &logger) {

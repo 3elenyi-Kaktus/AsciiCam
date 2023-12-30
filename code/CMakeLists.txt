@@ -26,7 +26,7 @@ add_executable(AsciiCam
         chat.h
         video_driver.cpp
         video_driver.h
-        definitions.h)
+        definitions.h input_device.cpp input_device.h)
 set(ASAN_OPTIONS "log_path=</home/user/Desktop/log.txt>")
 add_definitions(-DASAN_OPTIONS="${ASAN_OPTIONS}")
-target_link_libraries(AsciiCam ${OpenCV_LIBS} -lncurses -fsanitize=address -static-libasan -g)
+target_link_libraries(AsciiCam ${OpenCV_LIBS} -lncursesw -fsanitize=address -static-libasan -g)
