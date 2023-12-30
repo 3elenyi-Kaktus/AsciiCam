@@ -15,11 +15,11 @@ enum {
 
 class WebCamera {
 public:
-    explicit WebCamera(Logger &logger);
+    WebCamera();
 
     cv::Mat &GetFrame();
 
-    void GetNewFrame(Logger &logger);
+    void GetNewFrame();
 
     std::pair<int, int> GetFittedFrameSize(int height, int width);
 

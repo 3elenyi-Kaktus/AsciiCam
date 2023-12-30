@@ -19,7 +19,7 @@ class InputManager {
 public:
     InputManager() = default;
 
-    static std::pair<KeyType, wint_t> getKeypress(Logger &logger);
+    static std::pair<KeyType, wint_t> getKeypress();
 
 private:
     static wint_t getChar();

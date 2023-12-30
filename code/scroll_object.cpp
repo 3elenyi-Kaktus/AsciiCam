@@ -1,48 +1,80 @@
 #include "scroll_object.h"
+#include "cmath"
 
-ScrollObject::ScrollObject() {
-    scroll_behaviour = ScrollBehaviour();
-    scrollbar = ScrollbarPresence();
-}
+ScrollObject::ScrollObject() : size(), position(0), scroll_behaviour(), scrollbar_behaviour() {}
 
-ScrollObject::ScrollObject(const ScrollObjectParams& params, const Size& obj_size) : size(obj_size) {
+ScrollObject::ScrollObject(const ScrollObjectParams &params, const Size &obj_size) : size(obj_size), position(0) {
     scroll_behaviour = params.behaviour;
-    scrollbar = params.scrollbar;
-    if (scrollbar == ENABLED) {
+    scrollbar_behaviour = params.scrollbar;
+    if (scrollbar_behaviour != DISABLED) {
         --size.width;
     }
 }
 
-//todo add multiline support
-void ScrollObject::addLine(const std::wstring &str, Logger &logger) {
-    if (str.length() > size.width) {
-        std::string what = "str: \"";
-        what += WTOSTRING(str) + "\" length is " + std::to_string(str.length()) + ", while scr_obj.size.width is " +
-                std::to_string(size.width) + "\nNot implemented: ScrollObject::addLine";
-        throw std::runtime_error(what);
-    }
-    lines.push_back(str);
-    logger << "Added line \"" + WTOSTRING(str) + "\" to scroll_obj\n";
-    if (visible_chunk.size() < size.height) {
-        visible_chunk.push_back(str);
-    }
-    if (scroll_behaviour == SCROLL_DOWN_ON_UPDATE) {
-        scrollDown(logger);
+/// Add wstring to scroll object
+void ScrollObject::addLine(const std::wstring &str) {
+    uint64_t curr_pos = 0;
+    while (curr_pos < str.length()) {
+        uint64_t to_copy_len = std::min((size_t)size.width, str.length() - curr_pos);
+        std::wstring substring = str.substr(curr_pos, to_copy_len);
+        lines.push_back(substring);
+        logger << "Added line \"" + WTOSTRING(substring) + "\" to scroll_obj\n";
+        if (visible_chunk.size() < size.height) {
+            visible_chunk.push_back(substring);
+        }
+        if (scroll_behaviour == SCROLL_DOWN_ON_UPDATE) {
+            while (scrollDown()) {}
+        }
+        curr_pos += to_copy_len;
     }
 }
 
-std::deque<std::wstring> &ScrollObject::getVisibleChunk() {
-    for (std::wstring& line : visible_chunk) {
+/// Returns current visible chunk of scroll object
+std::deque<std::wstring> ScrollObject::getVisibleChunk() {
+    std::deque<std::wstring> visible = visible_chunk;
+    for (std::wstring &line: visible) {
         line.append(size.width - line.length(), ' ');
     }
-    return visible_chunk;
+    while (visible.size() < size.height) {
+        visible.emplace_back(size.width, L' ');
+    }
+    if (scrollbar_behaviour == DISABLED ||
+        scrollbar_behaviour == ENABLED_WHEN_NEEDED && visible_chunk.size() == lines.size()) {
+        return visible;
+    }
+    int64_t bar_size = size.height - 2;
+    int64_t bar_ratio = (int64_t)std::max(1.0l, roundl(bar_size * visible_chunk.size() / (long double)lines.size()));
+    int64_t bar_pos;
+    if (position + visible_chunk.size() == lines.size()) {
+        bar_pos = bar_size - bar_ratio;
+    } else if (position == 0) {
+        bar_pos = 0;
+    } else {
+        bar_pos = (int64_t)roundl(bar_size * position / (long double)lines.size());
+        if (bar_pos + bar_ratio == bar_size) { // so that bar touches floor only if last line is visible
+            --bar_pos;
+        }
+        if (bar_pos == 0) { // so that bar touches ceiling only if first line is visible
+            ++bar_pos;
+        }
+    }
+    std::wstring scrollbar = L"▴";
+    scrollbar.append(bar_pos, L'|');
+    scrollbar.append(bar_ratio, L'▓');
+    scrollbar.append(bar_size - bar_pos - bar_ratio, L'|');
+    scrollbar += L"▾";
+    for (int i = 0; i < visible.size(); ++i) {
+        visible[i] += scrollbar[i];
+    }
+    return visible;
 }
 
-bool ScrollObject::scrollDown(Logger &logger) {
+/// Try to scroll down if possible
+bool ScrollObject::scrollDown() {
     if (visible_chunk.size() == lines.size()) {
         return false;
     }
-    if (lines.size() - size.height == position) {
+    if (position == lines.size() - size.height) {
         return false;
     }
     logger << "Perform scroll-down\n";
@@ -52,7 +84,8 @@ bool ScrollObject::scrollDown(Logger &logger) {
     return true;
 }
 
-bool ScrollObject::scrollUp(Logger &logger) {
+/// Try to scroll up if possible
+bool ScrollObject::scrollUp() {
     if (visible_chunk.size() == lines.size()) {
         return false;
     }
@@ -64,8 +97,4 @@ bool ScrollObject::scrollUp(Logger &logger) {
     visible_chunk.push_front(lines[position - 1]);
     --position;
     return true;
-}
-
-void ScrollObject::addScrollbar() {
-    visible_chunk[0] += (u_char)178;
 }

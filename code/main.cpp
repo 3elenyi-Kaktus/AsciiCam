@@ -2,14 +2,15 @@
 
 //TODO:
 // Rework requirements. For now, gnome-terminal (as tested platform) and xterm (to resize window programmatically) needed
+Logger logger;
 
 int main() {
-    Logger logger;
+//    Logger logger;
     logger << "Start of AsciiCam\n";
 
     setlocale(LC_ALL, "");
     try {
-        Execute(logger);
+        Execute();
     } catch (const std::exception &e) {
         logger << e.what();
     } catch (...) {

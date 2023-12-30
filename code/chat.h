@@ -16,19 +16,19 @@ public:
 
     void drawBorders();
 
-    bool processNewInput(Logger &logger);
+    bool processNewInput();
 
-    void updateMessage(wint_t c, Logger &logger);
+    void updateMessage(wint_t c);
 
     void clearMessage();
 
-    int processMessage(Logger &logger);
+    int processMessage();
 
-    void addMessageToHistory(Logger &logger);
+    void addMessageToHistory();
 
-    void addMessageToHistory(std::string &msg, Logger &logger);
+    void addMessageToHistory(std::string &msg);
 
-    void performScroll(int64_t key, Logger &logger);
+    void performScroll(int64_t key);
 
     void updateChat();
 

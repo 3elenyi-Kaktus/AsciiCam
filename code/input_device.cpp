@@ -1,12 +1,12 @@
 #include "input_device.h"
 
 
-std::pair<KeyType, wint_t> InputManager::getKeypress(Logger &logger) {
+std::pair<KeyType, wint_t> InputManager::getKeypress() {
     wint_t symb = getChar();
-    if (symb < 32 and symb != 13 and symb != 27) {
+    if (symb < 32 and symb != 13 and symb != 10 and symb != 27) {
         throw std::runtime_error("Unexpected control symbol (InputManager::getKeypress)\n");
     }
-    if (symb == 13) {
+    if (symb == 13 || symb == 10) {
         return {ENTER, symb};
     }
     if (symb == 127) {

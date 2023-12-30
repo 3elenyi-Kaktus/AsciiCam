@@ -13,6 +13,7 @@ enum ScrollBehaviour {
 
 enum ScrollbarPresence {
     ENABLED,
+    ENABLED_WHEN_NEEDED,
     DISABLED
 };
 
@@ -27,21 +28,19 @@ public:
 
     ScrollObject(const ScrollObjectParams& params, const Size& obj_size);
 
-    void addLine(const std::wstring &str, Logger &logger);
+    void addLine(const std::wstring &str);
 
-    std::deque<std::wstring> &getVisibleChunk();
+    std::deque<std::wstring> getVisibleChunk();
 
-    bool scrollDown(Logger &logger);
+    bool scrollDown();
 
-    bool scrollUp(Logger &logger);
-
-    void addScrollbar();
+    bool scrollUp();
 
 private:
     std::vector<std::wstring> lines;
     std::deque<std::wstring> visible_chunk;
-    Size size{};
-    int64_t position = 0;
+    Size size;
+    int64_t position;
     ScrollBehaviour scroll_behaviour;
-    ScrollbarPresence scrollbar;
+    ScrollbarPresence scrollbar_behaviour;
 };

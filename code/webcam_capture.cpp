@@ -8,7 +8,7 @@ std::pair<int, int> ConvertSizeToPx(std::pair<int, int> &size) {
     return {size.first * ASCII_SYMBOL_HEIGHT, size.second * ASCII_SYMBOL_WIDTH};
 }
 
-WebCamera::WebCamera(Logger &logger) {
+WebCamera::WebCamera() {
     is_initialized = false;
     int deviceID = 0;             // 0 = open default camera
     int apiID = cv::CAP_ANY;      // auto api
@@ -26,7 +26,7 @@ cv::Mat &WebCamera::GetFrame() {
     return frame;
 }
 
-void WebCamera::GetNewFrame(Logger &logger) {
+void WebCamera::GetNewFrame() {
     cam.read(frame);
     // check if we succeeded
     if (frame.empty()) {

@@ -8,7 +8,7 @@ Network::Network(const std::vector<std::string> &IDs) : send_buf(BUF_SIZE), recv
     }
 }
 
-int Network::Connect(Logger &logger) {
+int Network::Connect() {
     char port_no[] = "33333\0";
     char ipaddr[] = "localhost\0";
 
@@ -84,7 +84,7 @@ int Network::Connect(Logger &logger) {
 
 // return 0 upon successfull request
 // return -1 if reached connection termination point
-int Network::GetMessage(const std::string &id, std::unique_ptr<std::string> &dest, Logger &logger) {
+int Network::GetMessage(const std::string &id, std::unique_ptr<std::string> &dest) {
     logger << "Message requested for \"" << id << "\", getting mutex\n";
     std::unique_lock<std::mutex> mtx(locks[id]);
     while (data_packets[id].empty()) {
@@ -99,7 +99,7 @@ int Network::GetMessage(const std::string &id, std::unique_ptr<std::string> &des
     return 0;
 }
 
-int Network::SendMessage(const std::string &id, const std::string &message, Logger &logger) {
+int Network::SendMessage(const std::string &id, const std::string &message) {
     std::copy(id.begin(), id.end(), send_buf.begin());
     send_buf[id.length()] = ' ';
     std::copy(message.begin(), message.end(), send_buf.begin() + id.length() + 1);
@@ -113,7 +113,7 @@ int Network::SendMessage(const std::string &id, const std::string &message, Logg
     return 0;
 }
 
-void Network::TerminateConnection(Logger &logger) {
+void Network::TerminateConnection() {
     logger << "Connection with server terminated\n";
     shutdown(sock_fd, SHUT_RDWR);
     logger << "Polling ended\n";

@@ -26,56 +26,49 @@ Chat::Chat(const Coordinates &chat_position_, const Size &chat_size_, ScreenMana
     typing_box_pos = {chat_pos.y + chat_size.height - typing_box_size.height - 1, chat_pos.x + 1};
     current_pos = {typing_box_pos.y, typing_box_pos.x + 2};
 
-    scr = ScrollObject(ScrollObjectParams(MANUAL, DISABLED), messages_box_size);
+    scr = ScrollObject(ScrollObjectParams(MANUAL, ENABLED_WHEN_NEEDED), messages_box_size);
     drawBorders();
 }
 
+/// Draw borders for chat including divider between chat and input field (using: ┌ ─ ┐ └ ┘ │)
 void Chat::drawBorders() {
-    screenManager->mvCharPrint(typing_box_pos, L'>');
-    std::string smth = "┌ ─ ┐ └ ┘ │";
     std::wstring top = L"┌";
-    while (top.length() < chat_size.width - 1) {
-        top += L"─";
-    }
-    top += L"┐";
+    top.append(chat_size.width - top.length() - 1, L'─');
+    top += L'┐';
     Coordinates coords(chat_pos.y, chat_pos.x);
     screenManager->mvStringPrint(coords, top);
-    for (int64_t i = chat_pos.y + 1; i < chat_size.height - 1; ++i) {
+    for (int64_t i = chat_pos.y + 1; i < chat_pos.y + chat_size.height - 1; ++i) {
         coords.y = i;
         coords.x = chat_pos.x;
         screenManager->mvCharPrint(coords, L'│');
         coords.x += chat_size.width - 1;
         screenManager->mvCharPrint(coords, L'│');
     }
-    std::wstring divider;
-    while (divider.length() < chat_size.width - 2) {
-        divider += L"─";
-    }
+    std::wstring divider(chat_size.width - 2, L'─');
     Coordinates div_coords(typing_box_pos.y - 1, typing_box_pos.x);
     screenManager->mvStringPrint(div_coords, divider);
+    screenManager->mvCharPrint(typing_box_pos, L'>');
     std::wstring bottom = L"└";
-    while (bottom.length() < chat_size.width - 1) {
-        bottom += L"─";
-    }
-    bottom += L"┘";
+    bottom.append(chat_size.width - bottom.length() - 1, L'─');
+    bottom += L'┘';
     ++coords.y;
     coords.x = chat_pos.x;
     screenManager->mvStringPrint(coords, bottom);
 }
 
-bool Chat::processNewInput(Logger &logger) {
+bool Chat::processNewInput() {
     screenManager->moveCursor(current_pos);
     screenManager->refreshScreen(true);
     logger << "waiting for char at " << current_pos.y << " " << current_pos.x << "\n";
-    std::pair<KeyType, wint_t> keypress = InputManager::getKeypress(logger);
+    std::pair<KeyType, wint_t> keypress = InputManager::getKeypress();
     KeyType key_type = keypress.first;
     wint_t symbol = keypress.second;
     if (key_type == SYMBOL || key_type == DELETE) {
-        updateMessage(symbol, logger);
+        updateMessage(symbol);
         return true;
     }
     if (key_type == ARROW_UP || key_type == ARROW_DOWN) {
-        performScroll(key_type, logger);
+        performScroll(key_type);
         return true;
     }
     if (key_type == ENTER) {
@@ -84,7 +77,7 @@ bool Chat::processNewInput(Logger &logger) {
     }
 }
 
-void Chat::updateMessage(wint_t symb, Logger &logger) {
+void Chat::updateMessage(wint_t symb) {
     if (symb == 127) { // Delete char, if possible
         logger << "Trying to delete char from message\n";
         if (message.empty()) {
@@ -124,31 +117,31 @@ void Chat::clearMessage() {
     screenManager->refreshScreen();
 }
 
-int Chat::processMessage(Logger &logger) {
+int Chat::processMessage() {
     logger << "Message entered: " << WTOSTRING(message) << "\n";
     if (message == L"quit") {
         logger << "User quit from chat\n";
         return -1;
     }
-    addMessageToHistory(logger);
+    addMessageToHistory();
     return 0;
 }
 
-void Chat::addMessageToHistory(Logger &logger) {
-    scr.addLine(message, logger);
+void Chat::addMessageToHistory() {
+    scr.addLine(message);
 }
 
-void Chat::addMessageToHistory(std::string &msg, Logger &logger) {
-    scr.addLine(STRINGTOW(msg), logger);
+void Chat::addMessageToHistory(std::string &msg) {
+    scr.addLine(STRINGTOW(msg));
 }
 
-void Chat::performScroll(int64_t key, Logger &logger) {
+void Chat::performScroll(int64_t key) {
     logger << "Trying to scroll\n";
     bool scroll_succeed = false;
     if (key == ARROW_UP) {
-        scroll_succeed = scr.scrollUp(logger);
+        scroll_succeed = scr.scrollUp();
     } else if (key == ARROW_DOWN) {
-        scroll_succeed = scr.scrollDown(logger);
+        scroll_succeed = scr.scrollDown();
     }
     if (scroll_succeed) {
         updateChat();

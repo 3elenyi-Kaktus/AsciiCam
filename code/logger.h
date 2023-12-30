@@ -23,3 +23,5 @@ private:
     std::string path;
     std::mutex writer;
 };
+
+extern Logger logger;

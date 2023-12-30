@@ -22,15 +22,15 @@ class Network {
 public:
     explicit Network(const std::vector<std::string> &IDs);
 
-    int Connect(Logger &logger);
+    int Connect();
 
 //    int StartPoll();
 
-    int GetMessage(const std::string &id, std::unique_ptr<std::string> &dest, Logger &logger);
+    int GetMessage(const std::string &id, std::unique_ptr<std::string> &dest);
 
-    int SendMessage(const std::string &id, const std::string &message, Logger &logger);
+    int SendMessage(const std::string &id, const std::string &message);
 
-    void TerminateConnection(Logger &logger);
+    void TerminateConnection();
 
     ~Network();
 
