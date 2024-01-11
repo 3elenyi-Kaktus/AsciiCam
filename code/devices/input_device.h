@@ -1,19 +1,18 @@
-#include "logger.h"
+#include "../logger.h"
 #include "unistd.h"
 
 enum KeyType {
-    SYMBOL,
-
     ENTER,
     ESCAPE,
     DELETE,
+
+    SYMBOL,
 
     ARROW_UP,
     ARROW_DOWN,
     ARROW_LEFT,
     ARROW_RIGHT,
 };
-
 
 class InputManager {
 public:

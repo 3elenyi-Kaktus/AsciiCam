@@ -1,7 +1,8 @@
 #include "user_channel.h"
 
+Logger logger;
 
-int CreatePassPoint(Logger &logger) {
+int CreatePassPoint() {
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (sock_fd < 0) {
         logger << "ERROR on creating socket\n";
@@ -33,9 +34,11 @@ int CreatePassPoint(Logger &logger) {
 }
 
 int main() {
-    Logger logger;
+    FILE *of = fopen("./cout_cerr.txt", "w");
+    dup2(fileno(of), STDERR_FILENO);
+    fclose(of);
 
-    int sock_fd = CreatePassPoint(logger);
+    int sock_fd = CreatePassPoint();
     if (sock_fd < 0) {
         logger << "Couldn't create passpoint socket. Terminating\n";
         std::cout << "Couldn't create passpoint socket. Terminating\n";
@@ -44,13 +47,13 @@ int main() {
     }
 
     UserChannel channel;
-    if (channel.Create(sock_fd, logger) < 0) {
+    if (channel.Create(sock_fd) < 0) {
         logger << "Couldn't create user channel. Terminating\n";
         std::cout << "Couldn't create user channel. Terminating\n";
         sleep(1);
         return 1;
     }
-    channel.StartTransmitting(logger);
+    channel.StartTransmitting();
     logger << "Ended transmitting successfully. Terminating\n";
     std::cout << "Ended transmitting successfully. Terminating\n";
     sleep(1);

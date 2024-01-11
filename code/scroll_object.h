@@ -22,6 +22,8 @@ struct ScrollObjectParams {
     ScrollbarPresence scrollbar;
 };
 
+using Line = std::pair<uint64_t, std::wstring>;
+
 class ScrollObject {
 public:
     ScrollObject();
@@ -30,17 +32,19 @@ public:
 
     void addLine(const std::wstring &str);
 
-    std::deque<std::wstring> getVisibleChunk();
+    std::vector<std::wstring> getVisibleChunk();
 
     bool scrollDown();
 
     bool scrollUp();
 
+    void Resize(Size new_size);
+
 private:
-    std::vector<std::wstring> lines;
-    std::deque<std::wstring> visible_chunk;
+    std::vector<Line> lines;
     Size size;
-    int64_t position;
+    uint64_t position;
     ScrollBehaviour scroll_behaviour;
     ScrollbarPresence scrollbar_behaviour;
+    uint64_t id;
 };

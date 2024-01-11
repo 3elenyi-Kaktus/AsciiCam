@@ -1,4 +1,5 @@
 #include "network.h"
+#include "iostream"
 
 Network::Network(const std::vector<std::string> &IDs) : send_buf(BUF_SIZE), recv_buf(BUF_SIZE) {
     for (const std::string &id: IDs) {
@@ -58,6 +59,11 @@ int Network::Connect() {
                 }
                 return;
             }
+            if (n != BUF_SIZE) {
+                std::cerr << "Less size: " << n << "\n";
+            } else {
+                std::cerr << "OK\n";
+            }
 //            logger << "Poller got message \"" << recv_buf << "\", start decode\n";
             std::string packet_id;
             int pos = 0;
@@ -65,13 +71,28 @@ int Network::Connect() {
                 packet_id += recv_buf[pos];
                 ++pos;
             }
+            ++pos;
+            int res = -1;
+            if (packet_id == "video") {
+                std::string size;
+                while (recv_buf[pos] != ' ') {
+                    size += recv_buf[pos];
+                    ++pos;
+                }
+                res = stoi(size);
+            }
+
 //            if (!data_packets.contains(packet_id)) {
 //                data_packets[packet_id] = {};
 //            }
             std::unique_lock<std::mutex> mtx(locks[packet_id]);
-            data_packets[packet_id].push_back(std::make_unique<std::string>(&(recv_buf[0]) + pos + 1));
-            logger << "Added packet with ID \"" << packet_id << "\", with msg \"" << *data_packets[packet_id].back()
-                   << "\"\n";
+            if (res >= 0) {
+                data_packets[packet_id].push_back(std::make_unique<std::string>(&(recv_buf[0]) + pos, &(recv_buf[0]) + pos + 1 + res));
+            } else {
+                data_packets[packet_id].push_back(std::make_unique<std::string>(&(recv_buf[0]) + pos));
+            }
+//            logger << "Added packet with ID \"" << packet_id << "\", with msg \"" << *data_packets[packet_id].back()
+//                   << "\"\n";
             if (data_packets[packet_id].size() == 1) {
                 availability[packet_id].notify_one();
             }
@@ -85,12 +106,13 @@ int Network::Connect() {
 // return 0 upon successfull request
 // return -1 if reached connection termination point
 int Network::GetMessage(const std::string &id, std::unique_ptr<std::string> &dest) {
-    logger << "Message requested for \"" << id << "\", getting mutex\n";
+//    logger << "Message requested for \"" << id << "\", getting mutex\n";
     std::unique_lock<std::mutex> mtx(locks[id]);
     while (data_packets[id].empty()) {
         availability[id].wait(mtx);
     }
-    logger << "Message retrieved: \"" << *data_packets[id].front() << "\"\n";
+    std::cerr << "Message retrieved with size: " << data_packets[id].front()->length() << "\n";
+//    logger << "Message retrieved: \"" << *data_packets[id].front() << "\"\n";
     dest = std::move(data_packets[id].front());
     data_packets[id].pop_front();
     if (*dest == "!stop") {
@@ -102,9 +124,17 @@ int Network::GetMessage(const std::string &id, std::unique_ptr<std::string> &des
 int Network::SendMessage(const std::string &id, const std::string &message) {
     std::copy(id.begin(), id.end(), send_buf.begin());
     send_buf[id.length()] = ' ';
-    std::copy(message.begin(), message.end(), send_buf.begin() + id.length() + 1);
-    *(send_buf.begin() + id.length() + message.length() + 1) = '\0';
-    logger << "Sending: \"" << message << "\"\n";
+    if (id == "video") {
+        std::string size = std::to_string(message.length());
+        std::copy(size.begin(), size.end(), send_buf.begin() + id.length() + 1);
+        send_buf[id.length() + 1 + size.length()] = ' ';
+        std::copy(message.begin(), message.end(), send_buf.begin() + id.length() + 1 + size.length() + 1);
+        *(send_buf.begin() + id.length() + 1 + size.length() + 1 + message.length()) = '\0';
+    } else {
+        std::copy(message.begin(), message.end(), send_buf.begin() + id.length() + 1);
+        *(send_buf.begin() + id.length() + message.length() + 1) = '\0';
+    }
+//    logger << "Sending: \"" << message << "\"\n";
     ssize_t n = send(sock_fd, &(send_buf[0]), BUF_SIZE, MSG_NOSIGNAL);
     if (n <= 0) {
         logger << "ERROR on writing to socket\n";

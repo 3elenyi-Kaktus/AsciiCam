@@ -1,4 +1,5 @@
 #include "printer.h"
+#include "logger.h"
 
 
 // std::string smth = "┌ ─ ┐ └ ┘ │"; for possible window fraction
@@ -89,27 +90,10 @@ InputMenu::InputMenu() {
     header_offset = 2;
 }
 
-Terminal::Terminal() {
-    initscr();
-    keypad(stdscr, true); // Enable system keys
-    curs_set(0); // Hide cursor
-    noecho(); // Disable visible input
-    getmaxyx(stdscr, height, width);
-}
-
-void Terminal::UpdateSize() {
-    getmaxyx(stdscr, height, width);
-}
-
-Terminal::~Terminal() {
-    endwin();
-}
-
-std::pair<int, int> PrintMenu(Terminal &terminal, Menu &menu) { // need to add terminal size compatibility
-    terminal.UpdateSize();
+std::pair<int, int> PrintMenu(ScreenManager &screen, Menu &menu) { // need to add terminal size compatibility
     clear();
-    int pos_x = (terminal.width - menu.width) / 2;
-    int pos_y = (terminal.height - menu.height) / 2 - menu.header_offset;
+    int pos_x = (screen.getSize().width - menu.width) / 2;
+    int pos_y = (screen.getSize().height - menu.height) / 2 - menu.header_offset;
     mvprintw(pos_y, pos_x - (menu.header.length() - menu.width) / 2, "%s", menu.header.c_str());
 
     for (int i = 0; i < menu.height; ++i) {
@@ -154,11 +138,10 @@ int GetOption(std::pair<int, int> &coords, int num_of_options) {
 }
 
 std::pair<int, int>
-PrintInputMenu(Terminal &terminal, InputMenu &input_menu) { // to be reworked, if multiple input menus added
-    terminal.UpdateSize();
+PrintInputMenu(ScreenManager& screen, InputMenu &input_menu) { // to be reworked, if multiple input menus added
     clear();
-    int pos_x = (terminal.width - input_menu.width) / 2;
-    int pos_y = (terminal.height - input_menu.height) / 2 - input_menu.header_offset;
+    int pos_x = (screen.getSize().width - input_menu.width) / 2;
+    int pos_y = (screen.getSize().height - input_menu.height) / 2 - input_menu.header_offset;
     mvprintw(pos_y, pos_x - (input_menu.header.length() - input_menu.width) / 2, "%s", input_menu.header.c_str());
     for (int i = 0; i < input_menu.height; ++i) {
         mvprintw(pos_y + i + input_menu.header_offset, pos_x, "%s", input_menu.input_lines[i].c_str());

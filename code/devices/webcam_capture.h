@@ -5,7 +5,7 @@
 #include <opencv4/opencv2/highgui.hpp>
 #include <opencv4/opencv2/imgproc.hpp>
 #include <iostream>
-#include "logger.h"
+#include "../logger.h"
 #include <cmath>
 
 enum {
@@ -17,17 +17,14 @@ class WebCamera {
 public:
     WebCamera();
 
-    cv::Mat &GetFrame();
+    cv::Mat GetNewFrame();
 
-    void GetNewFrame();
+    std::pair<int, int> GetFittedFrameSize(cv::Mat &frame, int height, int width);
 
-    std::pair<int, int> GetFittedFrameSize(int height, int width);
-
-    void PreprocessFrame(std::pair<int, int> &size);
+    cv::Mat& PreprocessFrame(cv::Mat& fr, std::pair<int, int> &size);
 
     bool is_initialized;
-private:
-    cv::Mat frame;
+
     cv::VideoCapture cam;
 };
 

@@ -15,7 +15,7 @@
 #include "memory"
 
 enum {
-    BUF_SIZE = 32768
+    BUF_SIZE = 1920*1080*10
 };
 
 class Network {

@@ -25,3 +25,5 @@ private:
 };
 
 extern Logger logger;
+
+std::ostream& operator<<(std::ostream& stream, const std::wstring& obj);

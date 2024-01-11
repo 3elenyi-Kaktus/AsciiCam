@@ -3,6 +3,7 @@
 #include "vector"
 #include "string"
 #include "ncurses.h"
+#include "devices/terminal.h"
 
 #define ENTER_KEY 012 // default ncurses KEY_ENTER seems to be another button
 
@@ -53,24 +54,11 @@ public:
 };
 
 
-class Terminal {
-public:
-    Terminal();
-
-    void UpdateSize();
-
-    ~Terminal();
-
-    int height;
-    int width;
-};
-
-
-std::pair<int, int> PrintMenu(Terminal &terminal, Menu &menu);
+std::pair<int, int> PrintMenu(ScreenManager& screen, Menu &menu);
 
 int GetOption(std::pair<int, int> &coords, int num_of_options);
 
-std::pair<int, int> PrintInputMenu(Terminal &terminal, InputMenu &input_menu);
+std::pair<int, int> PrintInputMenu(ScreenManager& screen, InputMenu &input_menu);
 
 std::string GetInputFromInputMenu(std::pair<int, int> &coords);
 

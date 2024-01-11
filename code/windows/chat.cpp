@@ -1,11 +1,11 @@
 #include "chat.h"
 #include <cmath>
 
+std::mutex chat_mtx;
 // Takes top left corner position, size and handler to videodriver
 // need to implement check on chat positions availability and corner cases
-Chat::Chat(const Coordinates &chat_position_, const Size &chat_size_, ScreenManager &manager_) : scr(),
-                                                                                                 chat_pos(chat_position_),
-                                                                                                 chat_size(chat_size_),
+Chat::Chat(const Coordinates &chat_position_, const Size &chat_size_, ScreenManager &manager_) : Window(chat_position_, chat_size_),
+                                                                                                 scr(),
                                                                                                  messages_box_pos(),
                                                                                                  typing_box_pos(),
                                                                                                  current_pos(),
@@ -20,10 +20,10 @@ Chat::Chat(const Coordinates &chat_position_, const Size &chat_size_, ScreenMana
 //    raw.c_cc[VTIME] = 1;
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 
-    messages_box_pos = {chat_pos.y + 1, chat_pos.x + 1}; // offset for borders
-    typing_box_size = {std::max(1L, (int64_t)ceil((double)(chat_size_.height - 3) * 5 / 100)), chat_size.width - 2};
-    messages_box_size = {chat_size.height - typing_box_size.height - 3, chat_size.width - 2};
-    typing_box_pos = {chat_pos.y + chat_size.height - typing_box_size.height - 1, chat_pos.x + 1};
+    messages_box_pos = {position.y + 1, position.x + 1}; // offset for borders
+    typing_box_size = {std::max(1L, (int64_t)ceil((double)(size.height - 3) * 5 / 100)), size.width - 2};
+    messages_box_size = {size.height - typing_box_size.height - 3, size.width - 2};
+    typing_box_pos = {position.y + size.height - typing_box_size.height - 1, position.x + 1};
     current_pos = {typing_box_pos.y, typing_box_pos.x + 2};
 
     scr = ScrollObject(ScrollObjectParams(MANUAL, ENABLED_WHEN_NEEDED), messages_box_size);
@@ -33,33 +33,33 @@ Chat::Chat(const Coordinates &chat_position_, const Size &chat_size_, ScreenMana
 /// Draw borders for chat including divider between chat and input field (using: ┌ ─ ┐ └ ┘ │)
 void Chat::drawBorders() {
     std::wstring top = L"┌";
-    top.append(chat_size.width - top.length() - 1, L'─');
+    top.append(size.width - top.length() - 1, L'─');
     top += L'┐';
-    Coordinates coords(chat_pos.y, chat_pos.x);
+    Coordinates coords(position.y, position.x);
     screenManager->mvStringPrint(coords, top);
-    for (int64_t i = chat_pos.y + 1; i < chat_pos.y + chat_size.height - 1; ++i) {
+    for (int64_t i = position.y + 1; i < position.y + size.height - 1; ++i) {
         coords.y = i;
-        coords.x = chat_pos.x;
+        coords.x = position.x;
         screenManager->mvCharPrint(coords, L'│');
-        coords.x += chat_size.width - 1;
+        coords.x += size.width - 1;
         screenManager->mvCharPrint(coords, L'│');
     }
-    std::wstring divider(chat_size.width - 2, L'─');
+    std::wstring divider(size.width - 2, L'─');
     Coordinates div_coords(typing_box_pos.y - 1, typing_box_pos.x);
     screenManager->mvStringPrint(div_coords, divider);
     screenManager->mvCharPrint(typing_box_pos, L'>');
     std::wstring bottom = L"└";
-    bottom.append(chat_size.width - bottom.length() - 1, L'─');
+    bottom.append(size.width - bottom.length() - 1, L'─');
     bottom += L'┘';
     ++coords.y;
-    coords.x = chat_pos.x;
+    coords.x = position.x;
     screenManager->mvStringPrint(coords, bottom);
 }
 
 bool Chat::processNewInput() {
     screenManager->moveCursor(current_pos);
     screenManager->refreshScreen(true);
-    logger << "waiting for char at " << current_pos.y << " " << current_pos.x << "\n";
+//    logger << "waiting for char at " << current_pos.y << " " << current_pos.x << "\n";
     std::pair<KeyType, wint_t> keypress = InputManager::getKeypress();
     KeyType key_type = keypress.first;
     wint_t symbol = keypress.second;
@@ -79,7 +79,7 @@ bool Chat::processNewInput() {
 
 void Chat::updateMessage(wint_t symb) {
     if (symb == 127) { // Delete char, if possible
-        logger << "Trying to delete char from message\n";
+//        logger << "Trying to delete char from message\n";
         if (message.empty()) {
             return;
         }
@@ -91,7 +91,7 @@ void Chat::updateMessage(wint_t symb) {
         screenManager->mvCharPrint(current_pos, ' ');
         message.pop_back();
     } else { // Add char, if possible
-        logger << "Letter entered: " << symb << "\n";
+//        logger << "Letter entered: " << symb << "\n";
         screenManager->mvCharPrint(current_pos, symb);
         ++current_pos.x;
         if (current_pos.x > typing_box_pos.x + typing_box_size.width - 1) {
@@ -149,10 +149,10 @@ void Chat::performScroll(int64_t key) {
 }
 
 void Chat::updateChat() {
-    std::deque<std::wstring> visible_lines = scr.getVisibleChunk();
+    logger << "Updating chat\n";
+    std::vector<std::wstring> visible_lines = scr.getVisibleChunk();
     Coordinates print_coords(messages_box_pos);
-    for (std::wstring line: visible_lines) {
-        line.append(chat_size.width - 2 - line.length(), ' ');
+    for (std::wstring& line: visible_lines) {
         screenManager->mvStringPrint(print_coords, line);
         ++print_coords.y;
     }
@@ -161,6 +161,31 @@ void Chat::updateChat() {
 
 std::wstring &Chat::getMessage() {
     return message;
+}
+
+//todo handle current typing position and message layout
+void Chat::Resize(Size new_size) {
+    logger << "\nChat resize called\n";
+    if (new_size == size) {
+        logger << "\nNo changes in chat size needed\n";
+        return;
+    }
+    logger << "Change size from " << size << " to " << new_size << "\n";
+    size = new_size;
+    typing_box_size = {std::max(1L, (int64_t)ceil((double)(size.height - 3) * 5 / 100)), size.width - 2};
+    messages_box_size = {size.height - typing_box_size.height - 3, size.width - 2};
+    typing_box_pos = {position.y + size.height - typing_box_size.height - 1, position.x + 1};
+//    current_pos = {typing_box_pos.y, typing_box_pos.x + 2};
+
+    scr.Resize(messages_box_size);
+    drawBorders();
+    std::vector<std::wstring> visible_lines = scr.getVisibleChunk();
+    Coordinates print_coords(messages_box_pos);
+    for (std::wstring& line: visible_lines) {
+        screenManager->mvStringPrint(print_coords, line);
+        ++print_coords.y;
+    }
+    logger << "Resized\n";
 }
 
 Chat::~Chat() {

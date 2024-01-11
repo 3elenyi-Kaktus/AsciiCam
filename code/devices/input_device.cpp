@@ -17,16 +17,16 @@ std::pair<KeyType, wint_t> InputManager::getKeypress() {
     }
 
     wint_t sequence[3];
-    logger << "Escape found, try interpret a control sequence\n";
+//    logger << "Escape found, try interpret a control sequence\n";
     sequence[0] = getChar();
     if (sequence[0] != '[') {
-        logger << "Not a correct sequence\n";
+//        logger << "Not a correct sequence\n";
         ungetChar(sequence[0]);
         return {ESCAPE, symb};
     }
 
     sequence[1] = getChar();
-    logger << "Got sequence \"" << sequence << "\"\n";
+//    logger << "Got sequence \"" << sequence << "\"\n";
     switch (sequence[1]) {
         case 'A': return {ARROW_UP, 0};
         case 'B': return {ARROW_DOWN, 0};

@@ -14,3 +14,8 @@ void Logger::ClearLog() {
 Logger::~Logger() {
     error_log.close();
 }
+
+std::ostream& operator<<(std::ostream& stream, const std::wstring& obj) {
+    stream << std::string(obj.begin(), obj.end());
+    return stream;
+}

@@ -4,10 +4,15 @@
 #include "ncurses.h"
 #include "mutex"
 #include "iostream"
-#include "definitions.h"
+#include "../definitions.h"
+#include "csignal"
+
+extern volatile sig_atomic_t resize_signal_catched;
 
 class ScreenManager {
 public:
+    ScreenManager();
+
     ScreenManager(int height, int width);
 
     void keycodesMode(int mode);
@@ -26,6 +31,15 @@ public:
 
     void refreshScreen(bool save_cursor_pos = false);
 
+    void Resize();
+
+    void block();
+
+    void unblock();
+
+    Size& getSize();
+
+    ~ScreenManager();
 
 private:
     std::vector<std::vector<wchar_t>> screen;

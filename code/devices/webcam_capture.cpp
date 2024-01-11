@@ -22,19 +22,17 @@ WebCamera::WebCamera() {
     is_initialized = true;
 }
 
-cv::Mat &WebCamera::GetFrame() {
-    return frame;
-}
-
-void WebCamera::GetNewFrame() {
+cv::Mat WebCamera::GetNewFrame() {
+    cv::Mat frame;
     cam.read(frame);
     // check if we succeeded
     if (frame.empty()) {
         logger << "ERROR! blank frame grabbed\n";
     }
+    return frame;
 }
 
-std::pair<int, int> WebCamera::GetFittedFrameSize(int height, int width) {
+std::pair<int, int> WebCamera::GetFittedFrameSize(cv::Mat& frame, int height, int width) {
     // convert size of the area we want to fit in from symbols to pixels
     height *= ASCII_SYMBOL_HEIGHT;
     width *= ASCII_SYMBOL_WIDTH;
@@ -63,16 +61,17 @@ std::pair<int, int> WebCamera::GetFittedFrameSize(int height, int width) {
     return {new_height, new_width};
 }
 
-void WebCamera::PreprocessFrame(std::pair<int, int> &size) {
+cv::Mat& WebCamera::PreprocessFrame(cv::Mat& fr, std::pair<int, int> &size) {
     cv::Size frame_size(size.second, size.first);
     // first resize
-    cv::resize(frame, frame, frame_size, cv::INTER_AREA);
+    cv::resize(fr, fr, frame_size, cv::INTER_AREA);
 
     // another scaling of the image for the correct mapping between pixels and symbols
     std::pair<int, int> size_symb = ConvertSizeToSymb(size);
     cv::Size frame_size_symb(size_symb.second, size_symb.first);
-    cv::resize(frame, frame, frame_size_symb, cv::INTER_AREA);
+    cv::resize(fr, fr, frame_size_symb, cv::INTER_AREA);
 
     // convert image to grayscale
-    cv::cvtColor(frame, frame, cv::COLOR_RGB2GRAY);
+    cv::cvtColor(fr, fr, cv::COLOR_RGB2GRAY);
+    return fr;
 }
